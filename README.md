@@ -8,114 +8,102 @@
 - **MariaDB** (사용자 데이터)
 - **Caffeine Cache** (API 응답 캐시)
 - **Firebase Admin SDK** (FCM 푸시)
-- **OkHttp** (HTTP 클라이언트)
+- **멀티모듈** + 헥사고날 아키텍처
 
 ## 아키텍처
 
-### 헥사고날 (Port-Adapter) 아키텍처
+### 멀티모듈 + 헥사고날 (Port-Adapter)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Adapter (In)                                │
-│  ┌─────────────────┐  ┌─────────────────┐                       │
-│  │  Web Controller │  │    Scheduler    │                       │
-│  └────────┬────────┘  └────────┬────────┘                       │
-└───────────┼─────────────────────┼───────────────────────────────┘
-            │                     │
-            ▼                     ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Domain (Port In)                             │
-│  ┌─────────────────┐  ┌─────────────────────┐                   │
-│  │ GetWeatherUseCase│  │PushSubscriptionUseCase│                │
-│  │   (interface)   │  │     (interface)      │                  │
-│  └────────┬────────┘  └──────────┬───────────┘                  │
-└───────────┼──────────────────────┼──────────────────────────────┘
-            │                      │
-            ▼                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Application                                  │
-│  ┌─────────────────┐  ┌─────────────────────┐                   │
-│  │  WeatherService │  │PushSubscriptionService│  ← Use Case 구현 │
-│  └────────┬────────┘  └──────────┬───────────┘                  │
-└───────────┼──────────────────────┼──────────────────────────────┘
-            │                      │
-            ▼                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Domain (Port Out)                            │
-│  ┌───────────┐ ┌──────────────┐ ┌──────────────────┐            │
-│  │WeatherPort│ │AirQualityPort│ │PushNotificationPort│           │
-│  │(interface)│ │  (interface) │ │    (interface)    │           │
-│  └─────┬─────┘ └──────┬───────┘ └────────┬──────────┘           │
-└────────┼──────────────┼──────────────────┼──────────────────────┘
-         │              │                  │
-         ▼              ▼                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Adapter (Out)                               │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
-│  │OpenMeteoAdapter│ │AirKoreaAdapter│ │  FcmAdapter  │            │
-│  └──────────────┘ └──────────────┘ └──────────────┘             │
-│                                                                  │
-│  ┌──────────────────────────────┐                               │
-│  │  PushSubscriptionRepository  │  (JPA)                        │
-│  └──────────────────────────────┘                               │
-└─────────────────────────────────────────────────────────────────┘
+│                         :app                                     │
+│              (부트스트랩, 설정, 의존성 조립)                      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ depends on
+            ┌───────────────┼───────────────┐
+            ▼               ▼               ▼
+┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+│   :adapter    │  │ :application  │  │   :domain     │
+│               │  │               │  │               │
+│ ┌───────────┐ │  │ ┌───────────┐ │  │ ┌───────────┐ │
+│ │Controller │ │  │ │  Service  │ │  │ │   Model   │ │
+│ │ Scheduler │ │  │ │ (UseCase  │ │  │ │   Port    │ │
+│ │   API     │ │  │ │   Impl)   │ │  │ │(interface)│ │
+│ │   JPA     │ │  │ └───────────┘ │  │ └───────────┘ │
+│ └───────────┘ │  └───────┬───────┘  └───────▲───────┘
+└───────┬───────┘          │                  │
+        │                  │                  │
+        └──────────────────┴──────────────────┘
+                    depends on :domain only
+```
+
+### 모듈별 역할 및 의존성
+
+| 모듈 | 역할 | 의존성 |
+|------|------|--------|
+| `:domain` | 도메인 모델, Port 인터페이스 | 없음 (순수 Kotlin) |
+| `:application` | UseCase 구현 | `:domain` |
+| `:adapter` | Controller, API 클라이언트, JPA | `:domain` |
+| `:app` | 부트스트랩, 설정, DI 조립 | 모든 모듈 |
+
+### 의존성 규칙 (컴파일 타임 강제)
+
+```
+✅ application → domain (UseCase가 Port 인터페이스 사용)
+✅ adapter → domain (Adapter가 Port 인터페이스 구현)
+❌ application → adapter (컴파일 에러!)
+❌ domain → 아무것도 (순수)
 ```
 
 ### 디렉토리 구조
 
 ```
-src/main/kotlin/com/seriouschoi/aircheck/
-├── AircheckServerApplication.kt
+aircheck-server/
+├── domain/                         # 도메인 모듈
+│   └── src/main/kotlin/.../domain/
+│       ├── model/
+│       │   ├── AirQuality.kt
+│       │   └── Weather.kt
+│       └── port/
+│           ├── in/                 # 인바운드 포트 (UseCase)
+│           │   ├── GetWeatherUseCase.kt
+│           │   └── PushSubscriptionUseCase.kt
+│           └── out/                # 아웃바운드 포트
+│               ├── WeatherPort.kt
+│               ├── AirQualityPort.kt
+│               ├── PushNotificationPort.kt
+│               └── PushSubscriptionPort.kt
 │
-├── domain/                          # 도메인 레이어
-│   ├── model/                       # 도메인 모델
-│   │   ├── AirQuality.kt
-│   │   └── Weather.kt
-│   └── port/
-│       ├── in/                      # 인바운드 포트 (Use Case)
-│       │   ├── GetWeatherUseCase.kt
-│       │   └── PushSubscriptionUseCase.kt
-│       └── out/                     # 아웃바운드 포트
-│           ├── WeatherPort.kt
-│           ├── AirQualityPort.kt
-│           └── PushNotificationPort.kt
+├── application/                    # 애플리케이션 모듈
+│   └── src/main/kotlin/.../application/
+│       ├── WeatherService.kt       # GetWeatherUseCase 구현
+│       └── PushSubscriptionService.kt
 │
-├── application/                     # 애플리케이션 레이어
-│   ├── WeatherService.kt            # Use Case 구현
-│   └── PushSubscriptionService.kt
+├── adapter/                        # 어댑터 모듈
+│   └── src/main/kotlin/.../adapter/
+│       ├── in/
+│       │   ├── web/
+│       │   │   ├── WeatherController.kt
+│       │   │   └── PushController.kt
+│       │   └── scheduler/
+│       │       ├── CacheRefreshScheduler.kt
+│       │       └── PushScheduler.kt
+│       └── out/
+│           ├── api/
+│           │   ├── OpenMeteoAdapter.kt
+│           │   ├── AirKoreaAdapter.kt
+│           │   └── FcmAdapter.kt
+│           └── persistence/
+│               ├── PushSubscriptionEntity.kt
+│               ├── PushSubscriptionRepository.kt
+│               └── PushSubscriptionAdapter.kt
 │
-├── adapter/                         # 어댑터 레이어
-│   ├── in/                          # 인바운드 어댑터
-│   │   ├── web/
-│   │   │   ├── WeatherController.kt
-│   │   │   └── PushController.kt
-│   │   └── scheduler/
-│   │       ├── CacheRefreshScheduler.kt
-│   │       └── PushScheduler.kt
-│   └── out/                         # 아웃바운드 어댑터
-│       ├── api/
-│       │   ├── OpenMeteoAdapter.kt
-│       │   ├── AirKoreaAdapter.kt
-│       │   └── FcmAdapter.kt
-│       └── persistence/
-│           ├── PushSubscriptionEntity.kt
-│           └── PushSubscriptionRepository.kt
-│
-└── config/
-    └── CacheConfig.kt
+└── app/                            # 부트스트랩 모듈
+    └── src/main/kotlin/.../
+        ├── AircheckServerApplication.kt
+        └── config/
+            └── CacheConfig.kt
 ```
-
-### 아키텍처 장점
-
-1. **외부 API 교체 용이**
-   - 기상청 API로 바꾸려면? `WeatherPort` 구현체만 추가
-   - 에어코리아 → 다른 API? `AirQualityPort` 구현체 교체
-
-2. **테스트 용이**
-   - Port를 Mock으로 교체하여 단위 테스트
-
-3. **의존성 역전**
-   - Domain이 외부 의존성 없이 순수 비즈니스 로직만
 
 ## API 엔드포인트
 
@@ -149,31 +137,29 @@ src/main/kotlin/com/seriouschoi/aircheck/
 
 ## 실행
 
-### Docker Compose (권장)
+### Docker Compose
 ```bash
 export AIRKOREA_API_KEY=your-api-key
 export FIREBASE_CREDENTIALS_JSON='{"type":"service_account",...}'
 docker-compose up -d
 ```
 
-### 로컬 실행
+### 로컬 빌드
 ```bash
-docker run -d --name mariadb \
-  -e MYSQL_ROOT_PASSWORD=root \
-  -e MYSQL_DATABASE=aircheck \
-  -e MYSQL_USER=aircheck \
-  -e MYSQL_PASSWORD=aircheck \
-  -p 3306:3306 \
-  mariadb:11
-
-export AIRKOREA_API_KEY=xxx
-export DB_HOST=localhost
-./gradlew bootRun
+./gradlew :app:bootJar
+java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 ```
 
-## TODO
+## 왜 멀티모듈인가?
 
-- [ ] AWS 배포
-- [ ] GitHub Actions CI/CD
-- [ ] 앱 연동
-- [ ] 테스트 코드
+1. **의존성 컴파일 타임 강제**
+   - adapter에서 application 클래스 import 불가능
+   - 실수로 아키텍처 위반 → 빌드 에러
+
+2. **명확한 경계**
+   - 각 모듈의 역할이 명확
+   - 코드 리뷰 시 "이 코드가 여기 있어도 되나?" 판단 쉬움
+
+3. **빌드 최적화**
+   - 변경된 모듈만 재빌드
+   - 대규모 프로젝트에서 빌드 시간 단축

@@ -4,8 +4,8 @@ import com.seriouschoi.aircheck.domain.port.`in`.GetWeatherUseCase
 import com.seriouschoi.aircheck.domain.port.`in`.PushSubscriptionResult
 import com.seriouschoi.aircheck.domain.port.`in`.PushSubscriptionUseCase
 import com.seriouschoi.aircheck.domain.port.out.PushNotificationPort
-import com.seriouschoi.aircheck.adapter.out.persistence.PushSubscriptionEntity
-import com.seriouschoi.aircheck.adapter.out.persistence.PushSubscriptionRepository
+import com.seriouschoi.aircheck.domain.port.out.PushSubscriptionData
+import com.seriouschoi.aircheck.domain.port.out.PushSubscriptionPort
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,7 +13,7 @@ import java.time.LocalTime
 
 @Service
 class PushSubscriptionService(
-    private val pushRepository: PushSubscriptionRepository,
+    private val pushSubscriptionPort: PushSubscriptionPort,
     private val pushNotificationPort: PushNotificationPort,
     private val weatherUseCase: GetWeatherUseCase
 ) : PushSubscriptionUseCase {
@@ -29,16 +29,10 @@ class PushSubscriptionService(
         pushTime: LocalTime,
         enabled: Boolean
     ): PushSubscriptionResult {
-        val existing = pushRepository.findByFcmToken(fcmToken)
+        val existing = pushSubscriptionPort.findByFcmToken(fcmToken)
         
-        val entity = existing?.copy(
-            latitude = latitude,
-            longitude = longitude,
-            address = address,
-            pushTime = pushTime,
-            enabled = enabled,
-            updatedAt = java.time.LocalDateTime.now()
-        ) ?: PushSubscriptionEntity(
+        val data = PushSubscriptionData(
+            id = existing?.id ?: 0,
             fcmToken = fcmToken,
             latitude = latitude,
             longitude = longitude,
@@ -47,28 +41,26 @@ class PushSubscriptionService(
             enabled = enabled
         )
         
-        val saved = pushRepository.save(entity)
+        val saved = pushSubscriptionPort.save(data)
         return saved.toResult()
     }
 
     @Transactional
     override fun unsubscribe(fcmToken: String): Boolean {
-        val subscription = pushRepository.findByFcmToken(fcmToken) ?: return false
-        pushRepository.delete(subscription)
+        val subscription = pushSubscriptionPort.findByFcmToken(fcmToken) ?: return false
+        pushSubscriptionPort.delete(subscription)
         return true
     }
 
     @Transactional
     override fun setEnabled(fcmToken: String, enabled: Boolean): PushSubscriptionResult? {
-        val subscription = pushRepository.findByFcmToken(fcmToken) ?: return null
-        val updated = pushRepository.save(
-            subscription.copy(enabled = enabled, updatedAt = java.time.LocalDateTime.now())
-        )
+        val subscription = pushSubscriptionPort.findByFcmToken(fcmToken) ?: return null
+        val updated = pushSubscriptionPort.save(subscription.copy(enabled = enabled))
         return updated.toResult()
     }
 
     override fun sendScheduledPush(time: LocalTime) {
-        val subscriptions = pushRepository.findEnabledByPushTime(time)
+        val subscriptions = pushSubscriptionPort.findEnabledByPushTime(time)
         log.info("Sending scheduled push for $time to ${subscriptions.size} subscribers")
 
         subscriptions.forEach { sub ->
@@ -108,7 +100,7 @@ class PushSubscriptionService(
         return "👕 $clothes $mask".trim()
     }
 
-    private fun PushSubscriptionEntity.toResult() = PushSubscriptionResult(
+    private fun PushSubscriptionData.toResult() = PushSubscriptionResult(
         id = id,
         fcmToken = fcmToken,
         pushTime = pushTime,

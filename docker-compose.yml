@@ -5,4 +5,34 @@ services:
       - "8080:8080"
     environment:
       - AIRKOREA_API_KEY=${AIRKOREA_API_KEY}
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON}
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=aircheck
+      - DB_USER=aircheck
+      - DB_PASSWORD=aircheck
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=aircheck
+      - MYSQL_USER=aircheck
+      - MYSQL_PASSWORD=aircheck
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:

@@ -4,16 +4,38 @@ server:
 spring:
   application:
     name: aircheck-server
+    
+  # Database
+  datasource:
+    url: jdbc:mariadb://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:aircheck}
+    username: ${DB_USER:aircheck}
+    password: ${DB_PASSWORD:aircheck}
+    driver-class-name: org.mariadb.jdbc.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MariaDBDialect
+        
+  # Cache
   cache:
     type: caffeine
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=10m
 
-# 에어코리아 API 키 (환경변수로 주입)
+# 에어코리아 API 키
 airkorea:
   api-key: ${AIRKOREA_API_KEY:your-api-key-here}
 
-# Actuator (헬스체크용)
+# Firebase (FCM)
+firebase:
+  credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
+
+# Actuator
 management:
   endpoints:
     web:
@@ -26,3 +48,4 @@ management:
 logging:
   level:
     com.seriouschoi.aircheck: DEBUG
+    org.hibernate.SQL: DEBUG

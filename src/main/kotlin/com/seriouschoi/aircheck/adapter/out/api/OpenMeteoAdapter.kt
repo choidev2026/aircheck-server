@@ -1,17 +1,17 @@
-package com.seriouschoi.aircheck.service
+package com.seriouschoi.aircheck.adapter.out.api
 
-import com.seriouschoi.aircheck.model.CurrentWeather
-import com.seriouschoi.aircheck.model.HourlyForecast
-import com.seriouschoi.aircheck.model.WeatherCondition
-import com.seriouschoi.aircheck.model.WeatherResponse
+import com.seriouschoi.aircheck.domain.model.CurrentWeather
+import com.seriouschoi.aircheck.domain.model.HourlyForecast
+import com.seriouschoi.aircheck.domain.model.WeatherCondition
+import com.seriouschoi.aircheck.domain.model.WeatherResponse
+import com.seriouschoi.aircheck.domain.port.out.WeatherPort
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.slf4j.LoggerFactory
-import org.springframework.cache.annotation.Cacheable
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 
 // ── Open-Meteo API 응답 모델 ───────────────────────────────────────────────
@@ -42,10 +42,11 @@ data class OpenMeteoHourly(
     @SerialName("weathercode") val weatherCode: List<Int> = emptyList()
 )
 
-// ── 서비스 ─────────────────────────────────────────────────────────────────
+// ── Adapter 구현 ───────────────────────────────────────────────────────────
 
-@Service
-class WeatherService {
+@Component
+class OpenMeteoAdapter : WeatherPort {
+    
     private val log = LoggerFactory.getLogger(javaClass)
     
     private val client = OkHttpClient.Builder()
@@ -54,12 +55,8 @@ class WeatherService {
         .build()
     
     private val json = Json { ignoreUnknownKeys = true }
-    
-    /**
-     * 날씨 정보 조회 (현재 + 48시간 예보)
-     */
-    @Cacheable("weather", key = "#lat + ',' + #lng")
-    fun getWeather(lat: Double, lng: Double): WeatherResponse? {
+
+    override fun getWeather(lat: Double, lng: Double): WeatherResponse? {
         val url = "https://api.open-meteo.com/v1/forecast" +
                 "?latitude=$lat&longitude=$lng" +
                 "&current=temperature_2m,apparent_temperature,precipitation,weathercode,cloudcover,is_day" +
@@ -100,7 +97,7 @@ class WeatherService {
                 }
             )
         } catch (e: Exception) {
-            log.error("날씨 조회 실패: ${e.message}")
+            log.error("Open-Meteo API 호출 실패: ${e.message}")
             null
         }
     }

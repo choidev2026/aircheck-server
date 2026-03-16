@@ -1,7 +1,8 @@
-package com.seriouschoi.aircheck.service
+package com.seriouschoi.aircheck.adapter.out.api
 
-import com.seriouschoi.aircheck.model.AirGrade
-import com.seriouschoi.aircheck.model.AirQualityResponse
+import com.seriouschoi.aircheck.domain.model.AirGrade
+import com.seriouschoi.aircheck.domain.model.AirQualityResponse
+import com.seriouschoi.aircheck.domain.port.out.AirQualityPort
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -9,7 +10,7 @@ import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
@@ -34,7 +35,7 @@ data class AirKoreaItem(
     val khaiValue: String = "-"
 )
 
-// ── 측정소 정보 (좌표 포함) ─────────────────────────────────────────────────
+// ── 측정소 정보 ────────────────────────────────────────────────────────────
 
 @Serializable
 data class StationResponse(val response: StationBody? = null)
@@ -49,36 +50,27 @@ data class StationItems(val items: List<StationItem> = emptyList())
 data class StationItem(
     val stationName: String = "",
     val addr: String = "",
-    val dmX: String = "",  // 위도
-    val dmY: String = ""   // 경도
+    val dmX: String = "",
+    val dmY: String = ""
 )
 
-// ── Nominatim 응답 ─────────────────────────────────────────────────────────
+// ── Adapter 구현 ───────────────────────────────────────────────────────────
 
-@Serializable
-data class NominatimResponse(val address: NominatimAddress? = null)
-
-@Serializable
-data class NominatimAddress(
-    val state: String = "",
-    val city: String? = null,
-    val city_district: String? = null,
-    val suburb: String? = null,
-    val town: String? = null,
-    val village: String? = null
-)
-
-// ── 서비스 ─────────────────────────────────────────────────────────────────
-
-@Service
-class AirKoreaService(
+@Component
+class AirKoreaAdapter(
     @Value("\${airkorea.api-key}") private val apiKey: String
-) {
+) : AirQualityPort {
+    
     private val log = LoggerFactory.getLogger(javaClass)
     
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            chain.proceed(chain.request().newBuilder()
+                .addHeader("User-Agent", "AirCheckServer/1.0")
+                .build())
+        }
         .build()
     
     private val json = Json { 
@@ -86,13 +78,10 @@ class AirKoreaService(
         coerceInputValues = true
     }
     
-    // 측정소 좌표 캐시 (앱 시작 시 로드)
+    // 측정소 좌표 캐시
     private var stationCoordinates: Map<String, Pair<Double, Double>> = emptyMap()
-    
-    /**
-     * 측정소 목록 로드 (좌표 포함)
-     */
-    fun loadStationCoordinates() {
+
+    override fun loadStationCoordinates() {
         try {
             val url = "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstnList" +
                     "?pageNo=1&numOfRows=700&returnType=json" +
@@ -115,11 +104,8 @@ class AirKoreaService(
             log.error("측정소 로드 실패: ${e.message}")
         }
     }
-    
-    /**
-     * 좌표 기반 가장 가까운 측정소 찾기
-     */
-    fun findNearestStation(lat: Double, lng: Double): String? {
+
+    private fun findNearestStation(lat: Double, lng: Double): String? {
         if (stationCoordinates.isEmpty()) loadStationCoordinates()
         
         return stationCoordinates.minByOrNull { (_, coords) ->
@@ -127,34 +113,10 @@ class AirKoreaService(
             Math.sqrt(Math.pow(lat - sLat, 2.0) + Math.pow(lng - sLng, 2.0))
         }?.key
     }
-    
-    /**
-     * 좌표로 시도명 얻기 (Nominatim)
-     */
-    @Cacheable("sido")
-    fun getSidoName(lat: Double, lng: Double): String? {
-        val url = "https://nominatim.openstreetmap.org/reverse" +
-                "?lat=$lat&lon=$lng&format=json&accept-language=ko&addressdetails=1"
-        
-        return try {
-            val response = get(url)
-            val parsed = json.decodeFromString<NominatimResponse>(response)
-            parsed.address?.state
-        } catch (e: Exception) {
-            log.error("Nominatim 호출 실패: ${e.message}")
-            null
-        }
-    }
-    
-    /**
-     * 대기질 정보 조회 (좌표 기반)
-     */
-    @Cacheable("airquality", key = "#lat + ',' + #lng")
-    fun getAirQuality(lat: Double, lng: Double): AirQualityResponse? {
-        // 1. 가장 가까운 측정소 찾기
+
+    override fun getAirQuality(lat: Double, lng: Double): AirQualityResponse? {
         val stationName = findNearestStation(lat, lng) ?: return null
         
-        // 2. 측정소 데이터 조회
         val url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty" +
                 "?stationName=${URLEncoder.encode(stationName, "UTF-8")}" +
                 "&dataTerm=DAILY&pageNo=1&numOfRows=1&returnType=json" +
@@ -187,7 +149,7 @@ class AirKoreaService(
                 worstGrade = AirGrade.worst(pm10Grade, pm25Grade, aqiGrade)
             )
         } catch (e: Exception) {
-            log.error("대기질 조회 실패: ${e.message}")
+            log.error("에어코리아 API 호출 실패: ${e.message}")
             null
         }
     }

@@ -1,4 +1,4 @@
-package com.seriouschoi.aircheck.service
+package com.seriouschoi.aircheck.adapter.out.api
 
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
@@ -6,16 +6,18 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
+import com.seriouschoi.aircheck.domain.port.out.PushNotificationPort
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import java.io.ByteArrayInputStream
 
-@Service
-class FcmService(
+@Component
+class FcmAdapter(
     @Value("\${firebase.credentials-json:}") private val credentialsJson: String
-) {
+) : PushNotificationPort {
+    
     private val log = LoggerFactory.getLogger(javaClass)
 
     @PostConstruct
@@ -42,10 +44,7 @@ class FcmService(
         }
     }
 
-    /**
-     * 단일 디바이스에 푸시 전송
-     */
-    fun sendPush(token: String, title: String, body: String, data: Map<String, String> = emptyMap()): Boolean {
+    override fun sendPush(token: String, title: String, body: String, data: Map<String, String>): Boolean {
         return try {
             val message = Message.builder()
                 .setToken(token)
@@ -67,10 +66,7 @@ class FcmService(
         }
     }
 
-    /**
-     * 날씨 요약 푸시 전송
-     */
-    fun sendWeatherSummary(
+    override fun sendWeatherSummary(
         token: String,
         temperature: Double,
         weatherCondition: String,

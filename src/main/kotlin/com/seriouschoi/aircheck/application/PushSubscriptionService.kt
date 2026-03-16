@@ -1,43 +1,44 @@
-package com.seriouschoi.aircheck.service
+package com.seriouschoi.aircheck.application
 
-import com.seriouschoi.aircheck.entity.PushSubscription
-import com.seriouschoi.aircheck.repository.PushSubscriptionRepository
+import com.seriouschoi.aircheck.domain.port.`in`.GetWeatherUseCase
+import com.seriouschoi.aircheck.domain.port.`in`.PushSubscriptionResult
+import com.seriouschoi.aircheck.domain.port.`in`.PushSubscriptionUseCase
+import com.seriouschoi.aircheck.domain.port.out.PushNotificationPort
+import com.seriouschoi.aircheck.adapter.out.persistence.PushSubscriptionEntity
+import com.seriouschoi.aircheck.adapter.out.persistence.PushSubscriptionRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalTime
 
 @Service
-class PushService(
+class PushSubscriptionService(
     private val pushRepository: PushSubscriptionRepository,
-    private val fcmService: FcmService,
-    private val weatherService: WeatherService,
-    private val airKoreaService: AirKoreaService
-) {
+    private val pushNotificationPort: PushNotificationPort,
+    private val weatherUseCase: GetWeatherUseCase
+) : PushSubscriptionUseCase {
+    
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /**
-     * 푸시 구독 등록/수정
-     */
     @Transactional
-    fun subscribe(
+    override fun subscribe(
         fcmToken: String,
         latitude: Double,
         longitude: Double,
         address: String?,
         pushTime: LocalTime,
-        enabled: Boolean = true
-    ): PushSubscription {
+        enabled: Boolean
+    ): PushSubscriptionResult {
         val existing = pushRepository.findByFcmToken(fcmToken)
         
-        val subscription = existing?.copy(
+        val entity = existing?.copy(
             latitude = latitude,
             longitude = longitude,
             address = address,
             pushTime = pushTime,
             enabled = enabled,
             updatedAt = java.time.LocalDateTime.now()
-        ) ?: PushSubscription(
+        ) ?: PushSubscriptionEntity(
             fcmToken = fcmToken,
             latitude = latitude,
             longitude = longitude,
@@ -46,45 +47,39 @@ class PushService(
             enabled = enabled
         )
         
-        return pushRepository.save(subscription)
+        val saved = pushRepository.save(entity)
+        return saved.toResult()
     }
 
-    /**
-     * 푸시 구독 해제
-     */
     @Transactional
-    fun unsubscribe(fcmToken: String): Boolean {
+    override fun unsubscribe(fcmToken: String): Boolean {
         val subscription = pushRepository.findByFcmToken(fcmToken) ?: return false
         pushRepository.delete(subscription)
         return true
     }
 
-    /**
-     * 푸시 활성화/비활성화
-     */
     @Transactional
-    fun setEnabled(fcmToken: String, enabled: Boolean): PushSubscription? {
+    override fun setEnabled(fcmToken: String, enabled: Boolean): PushSubscriptionResult? {
         val subscription = pushRepository.findByFcmToken(fcmToken) ?: return null
-        return pushRepository.save(subscription.copy(enabled = enabled, updatedAt = java.time.LocalDateTime.now()))
+        val updated = pushRepository.save(
+            subscription.copy(enabled = enabled, updatedAt = java.time.LocalDateTime.now())
+        )
+        return updated.toResult()
     }
 
-    /**
-     * 특정 시간에 알림 받을 구독자들에게 푸시 발송
-     */
-    fun sendScheduledPush(time: LocalTime) {
+    override fun sendScheduledPush(time: LocalTime) {
         val subscriptions = pushRepository.findEnabledByPushTime(time)
         log.info("Sending scheduled push for $time to ${subscriptions.size} subscribers")
 
         subscriptions.forEach { sub ->
             try {
-                // 날씨 & 대기질 조회
-                val weather = weatherService.getWeather(sub.latitude, sub.longitude)
-                val air = airKoreaService.getAirQuality(sub.latitude, sub.longitude)
+                val weather = weatherUseCase.getWeather(sub.latitude, sub.longitude)
+                val air = weatherUseCase.getAirQuality(sub.latitude, sub.longitude)
 
                 if (weather != null) {
                     val recommendation = buildRecommendation(weather.current.temperature, air?.pm25)
                     
-                    fcmService.sendWeatherSummary(
+                    pushNotificationPort.sendWeatherSummary(
                         token = sub.fcmToken,
                         temperature = weather.current.temperature,
                         weatherCondition = weather.current.weatherCondition.emoji + " " + weather.current.weatherCondition.label,
@@ -110,7 +105,13 @@ class PushService(
         }
 
         val mask = if ((pm25 ?: 0) > 35) "마스크 챙기세요!" else ""
-        
         return "👕 $clothes $mask".trim()
     }
+
+    private fun PushSubscriptionEntity.toResult() = PushSubscriptionResult(
+        id = id,
+        fcmToken = fcmToken,
+        pushTime = pushTime,
+        enabled = enabled
+    )
 }

@@ -1,30 +1,19 @@
-package com.seriouschoi.aircheck.controller
+package com.seriouschoi.aircheck.adapter.`in`.web
 
-import com.seriouschoi.aircheck.model.AirQualityResponse
-import com.seriouschoi.aircheck.model.WeatherResponse
-import com.seriouschoi.aircheck.service.AirKoreaService
-import com.seriouschoi.aircheck.service.WeatherService
-import kotlinx.serialization.Serializable
+import com.seriouschoi.aircheck.domain.model.AirQualityResponse
+import com.seriouschoi.aircheck.domain.model.WeatherResponse
+import com.seriouschoi.aircheck.domain.port.`in`.CombinedWeatherResult
+import com.seriouschoi.aircheck.domain.port.`in`.GetWeatherUseCase
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
-/**
- * 통합 응답 (날씨 + 대기질)
- */
-@Serializable
-data class CombinedWeatherResponse(
-    val weather: WeatherResponse?,
-    val airQuality: AirQualityResponse?
-)
-
 @RestController
 @RequestMapping("/api/v1")
 class WeatherController(
-    private val weatherService: WeatherService,
-    private val airKoreaService: AirKoreaService
+    private val weatherUseCase: GetWeatherUseCase
 ) {
 
     /**
@@ -36,11 +25,8 @@ class WeatherController(
     fun getWeather(
         @RequestParam lat: Double,
         @RequestParam lng: Double
-    ): ResponseEntity<CombinedWeatherResponse> {
-        val weather = weatherService.getWeather(lat, lng)
-        val airQuality = airKoreaService.getAirQuality(lat, lng)
-        
-        return ResponseEntity.ok(CombinedWeatherResponse(weather, airQuality))
+    ): ResponseEntity<CombinedWeatherResult> {
+        return ResponseEntity.ok(weatherUseCase.getCombined(lat, lng))
     }
 
     /**
@@ -53,7 +39,7 @@ class WeatherController(
         @RequestParam lat: Double,
         @RequestParam lng: Double
     ): ResponseEntity<WeatherResponse?> {
-        return ResponseEntity.ok(weatherService.getWeather(lat, lng))
+        return ResponseEntity.ok(weatherUseCase.getWeather(lat, lng))
     }
 
     /**
@@ -66,6 +52,6 @@ class WeatherController(
         @RequestParam lat: Double,
         @RequestParam lng: Double
     ): ResponseEntity<AirQualityResponse?> {
-        return ResponseEntity.ok(airKoreaService.getAirQuality(lat, lng))
+        return ResponseEntity.ok(weatherUseCase.getAirQuality(lat, lng))
     }
 }

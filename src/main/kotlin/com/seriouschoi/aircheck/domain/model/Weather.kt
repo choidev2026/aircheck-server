@@ -1,4 +1,4 @@
-package com.seriouschoi.aircheck.model
+package com.seriouschoi.aircheck.domain.model
 
 import kotlinx.serialization.Serializable
 

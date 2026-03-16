@@ -1,6 +1,6 @@
-package com.seriouschoi.aircheck.controller
+package com.seriouschoi.aircheck.adapter.`in`.web
 
-import com.seriouschoi.aircheck.service.PushService
+import com.seriouschoi.aircheck.domain.port.`in`.PushSubscriptionUseCase
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.ResponseEntity
@@ -44,7 +44,7 @@ data class SubscriptionResponse(
 @RestController
 @RequestMapping("/api/v1/push")
 class PushController(
-    private val pushService: PushService
+    private val pushUseCase: PushSubscriptionUseCase
 ) {
 
     /**
@@ -56,7 +56,7 @@ class PushController(
     fun subscribe(@Valid @RequestBody request: SubscribeRequest): ResponseEntity<SubscriptionResponse> {
         val pushTime = LocalTime.of(request.pushTimeHour, request.pushTimeMinute)
         
-        val subscription = pushService.subscribe(
+        val result = pushUseCase.subscribe(
             fcmToken = request.fcmToken,
             latitude = request.latitude,
             longitude = request.longitude,
@@ -69,7 +69,7 @@ class PushController(
             SubscriptionResponse(
                 success = true,
                 message = "푸시 알림이 등록되었습니다.",
-                pushTime = subscription.pushTime.toString()
+                pushTime = result.pushTime.toString()
             )
         )
     }
@@ -81,12 +81,12 @@ class PushController(
      */
     @PostMapping("/unsubscribe")
     fun unsubscribe(@Valid @RequestBody request: UnsubscribeRequest): ResponseEntity<SubscriptionResponse> {
-        val result = pushService.unsubscribe(request.fcmToken)
+        val success = pushUseCase.unsubscribe(request.fcmToken)
         
         return ResponseEntity.ok(
             SubscriptionResponse(
-                success = result,
-                message = if (result) "구독이 해제되었습니다." else "구독 정보를 찾을 수 없습니다."
+                success = success,
+                message = if (success) "구독이 해제되었습니다." else "구독 정보를 찾을 수 없습니다."
             )
         )
     }
@@ -98,12 +98,12 @@ class PushController(
      */
     @PostMapping("/enabled")
     fun setEnabled(@Valid @RequestBody request: SetEnabledRequest): ResponseEntity<SubscriptionResponse> {
-        val subscription = pushService.setEnabled(request.fcmToken, request.enabled)
+        val result = pushUseCase.setEnabled(request.fcmToken, request.enabled)
         
         return ResponseEntity.ok(
             SubscriptionResponse(
-                success = subscription != null,
-                message = if (subscription != null) {
+                success = result != null,
+                message = if (result != null) {
                     if (request.enabled) "알림이 활성화되었습니다." else "알림이 비활성화되었습니다."
                 } else {
                     "구독 정보를 찾을 수 없습니다."

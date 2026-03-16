@@ -10,6 +10,113 @@
 - **Firebase Admin SDK** (FCM 푸시)
 - **OkHttp** (HTTP 클라이언트)
 
+## 아키텍처
+
+### 헥사고날 (Port-Adapter) 아키텍처
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Adapter (In)                                │
+│  ┌─────────────────┐  ┌─────────────────┐                       │
+│  │  Web Controller │  │    Scheduler    │                       │
+│  └────────┬────────┘  └────────┬────────┘                       │
+└───────────┼─────────────────────┼───────────────────────────────┘
+            │                     │
+            ▼                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Domain (Port In)                             │
+│  ┌─────────────────┐  ┌─────────────────────┐                   │
+│  │ GetWeatherUseCase│  │PushSubscriptionUseCase│                │
+│  │   (interface)   │  │     (interface)      │                  │
+│  └────────┬────────┘  └──────────┬───────────┘                  │
+└───────────┼──────────────────────┼──────────────────────────────┘
+            │                      │
+            ▼                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Application                                  │
+│  ┌─────────────────┐  ┌─────────────────────┐                   │
+│  │  WeatherService │  │PushSubscriptionService│  ← Use Case 구현 │
+│  └────────┬────────┘  └──────────┬───────────┘                  │
+└───────────┼──────────────────────┼──────────────────────────────┘
+            │                      │
+            ▼                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Domain (Port Out)                            │
+│  ┌───────────┐ ┌──────────────┐ ┌──────────────────┐            │
+│  │WeatherPort│ │AirQualityPort│ │PushNotificationPort│           │
+│  │(interface)│ │  (interface) │ │    (interface)    │           │
+│  └─────┬─────┘ └──────┬───────┘ └────────┬──────────┘           │
+└────────┼──────────────┼──────────────────┼──────────────────────┘
+         │              │                  │
+         ▼              ▼                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Adapter (Out)                               │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
+│  │OpenMeteoAdapter│ │AirKoreaAdapter│ │  FcmAdapter  │            │
+│  └──────────────┘ └──────────────┘ └──────────────┘             │
+│                                                                  │
+│  ┌──────────────────────────────┐                               │
+│  │  PushSubscriptionRepository  │  (JPA)                        │
+│  └──────────────────────────────┘                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 디렉토리 구조
+
+```
+src/main/kotlin/com/seriouschoi/aircheck/
+├── AircheckServerApplication.kt
+│
+├── domain/                          # 도메인 레이어
+│   ├── model/                       # 도메인 모델
+│   │   ├── AirQuality.kt
+│   │   └── Weather.kt
+│   └── port/
+│       ├── in/                      # 인바운드 포트 (Use Case)
+│       │   ├── GetWeatherUseCase.kt
+│       │   └── PushSubscriptionUseCase.kt
+│       └── out/                     # 아웃바운드 포트
+│           ├── WeatherPort.kt
+│           ├── AirQualityPort.kt
+│           └── PushNotificationPort.kt
+│
+├── application/                     # 애플리케이션 레이어
+│   ├── WeatherService.kt            # Use Case 구현
+│   └── PushSubscriptionService.kt
+│
+├── adapter/                         # 어댑터 레이어
+│   ├── in/                          # 인바운드 어댑터
+│   │   ├── web/
+│   │   │   ├── WeatherController.kt
+│   │   │   └── PushController.kt
+│   │   └── scheduler/
+│   │       ├── CacheRefreshScheduler.kt
+│   │       └── PushScheduler.kt
+│   └── out/                         # 아웃바운드 어댑터
+│       ├── api/
+│       │   ├── OpenMeteoAdapter.kt
+│       │   ├── AirKoreaAdapter.kt
+│       │   └── FcmAdapter.kt
+│       └── persistence/
+│           ├── PushSubscriptionEntity.kt
+│           └── PushSubscriptionRepository.kt
+│
+└── config/
+    └── CacheConfig.kt
+```
+
+### 아키텍처 장점
+
+1. **외부 API 교체 용이**
+   - 기상청 API로 바꾸려면? `WeatherPort` 구현체만 추가
+   - 에어코리아 → 다른 API? `AirQualityPort` 구현체 교체
+
+2. **테스트 용이**
+   - Port를 Mock으로 교체하여 단위 테스트
+
+3. **의존성 역전**
+   - Domain이 외부 의존성 없이 순수 비즈니스 로직만
+
 ## API 엔드포인트
 
 ### 날씨/대기질
@@ -28,25 +135,6 @@
 | POST | `/api/v1/push/unsubscribe` | 구독 해제 |
 | POST | `/api/v1/push/enabled` | 알림 on/off |
 
-#### 푸시 구독 요청
-```json
-POST /api/v1/push/subscribe
-{
-  "fcmToken": "device-fcm-token",
-  "latitude": 37.5665,
-  "longitude": 126.9780,
-  "address": "서울특별시 중구",
-  "pushTimeHour": 7,
-  "pushTimeMinute": 0,
-  "enabled": true
-}
-```
-
-### 헬스체크
-```
-GET /actuator/health
-```
-
 ## 환경 변수
 
 | 변수 | 설명 | 필수 |
@@ -63,17 +151,13 @@ GET /actuator/health
 
 ### Docker Compose (권장)
 ```bash
-# 환경변수 설정
 export AIRKOREA_API_KEY=your-api-key
 export FIREBASE_CREDENTIALS_JSON='{"type":"service_account",...}'
-
-# 실행
 docker-compose up -d
 ```
 
-### 로컬 실행 (MariaDB 필요)
+### 로컬 실행
 ```bash
-# MariaDB 실행
 docker run -d --name mariadb \
   -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_DATABASE=aircheck \
@@ -82,46 +166,10 @@ docker run -d --name mariadb \
   -p 3306:3306 \
   mariadb:11
 
-# 서버 실행
 export AIRKOREA_API_KEY=xxx
 export DB_HOST=localhost
 ./gradlew bootRun
 ```
-
-## 프로젝트 구조
-
-```
-src/main/kotlin/com/seriouschoi/aircheck/
-├── AircheckServerApplication.kt
-├── config/
-│   └── CacheConfig.kt
-├── controller/
-│   ├── WeatherController.kt      # 날씨/대기질 API
-│   └── PushController.kt         # 푸시 알림 API
-├── entity/
-│   └── PushSubscription.kt       # 푸시 구독 엔티티
-├── model/
-│   ├── AirQuality.kt
-│   └── Weather.kt
-├── repository/
-│   └── PushSubscriptionRepository.kt
-├── scheduler/
-│   ├── CacheRefreshScheduler.kt
-│   └── PushScheduler.kt          # 정시 푸시 발송
-└── service/
-    ├── AirKoreaService.kt
-    ├── WeatherService.kt
-    ├── FcmService.kt             # FCM 연동
-    └── PushService.kt            # 푸시 비즈니스 로직
-```
-
-## 푸시 알림 동작 방식
-
-1. 사용자가 앱에서 알림 시간 설정 (예: 07:00)
-2. 서버가 매 정시마다 스케줄러 실행
-3. 해당 시간에 알림 받을 구독자 조회
-4. 각 구독자 위치의 날씨/대기질 조회
-5. FCM으로 푸시 발송
 
 ## TODO
 

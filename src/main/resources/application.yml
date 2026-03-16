@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: aircheck-server
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=10m
+
+# 에어코리아 API 키 (환경변수로 주입)
+airkorea:
+  api-key: ${AIRKOREA_API_KEY:your-api-key-here}
+
+# Actuator (헬스체크용)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,caches
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.seriouschoi.aircheck: DEBUG

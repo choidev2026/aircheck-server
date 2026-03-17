@@ -71,11 +71,14 @@ class PushSubscriptionService(
                 if (weather != null) {
                     val recommendation = buildRecommendation(weather.current.temperature, air?.pm25)
                     
+                    // PM2.5 등급 문자열 생성 (밀도 기반)
+                    val pm25Status = air?.pm25?.let { getPm25Status(it) } ?: "❓ 알 수 없음"
+                    
                     pushNotificationPort.sendWeatherSummary(
                         token = sub.fcmToken,
                         temperature = weather.current.temperature,
                         weatherCondition = weather.current.weatherCondition.emoji + " " + weather.current.weatherCondition.label,
-                        pm25Grade = air?.pm25Grade?.emoji + " " + (air?.pm25Grade?.label ?: "알 수 없음"),
+                        pm25Grade = pm25Status,
                         recommendation = recommendation
                     )
                 }
@@ -83,6 +86,18 @@ class PushSubscriptionService(
                 log.error("Failed to send push to ${sub.id}: ${e.message}")
             }
         }
+    }
+
+    /**
+     * PM2.5 밀도를 상태 문자열로 변환 (WHO 2021 기준)
+     */
+    private fun getPm25Status(pm25: Int): String = when {
+        pm25 <= 15 -> "😊 좋음"
+        pm25 <= 25 -> "🙂 보통"
+        pm25 <= 37 -> "😐 민감군 주의"
+        pm25 <= 50 -> "😷 나쁨"
+        pm25 <= 75 -> "🤢 매우 나쁨"
+        else -> "☠️ 위험"
     }
 
     private fun buildRecommendation(temp: Double, pm25: Int?): String {

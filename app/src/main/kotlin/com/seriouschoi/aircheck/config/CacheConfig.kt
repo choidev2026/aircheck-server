@@ -15,7 +15,7 @@ class CacheConfig {
         val cacheManager = CaffeineCacheManager()
         cacheManager.setCaffeine(
             Caffeine.newBuilder()
-                .expireAfterWrite(10, TimeUnit.MINUTES)  // 10분 캐시
+                .expireAfterWrite(30, TimeUnit.MINUTES)  // 30분 캐시
                 .maximumSize(1000)
         )
         return cacheManager

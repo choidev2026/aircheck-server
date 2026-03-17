@@ -24,7 +24,7 @@
 2. 캐시 확인
    ├─ 캐시 있음 (HIT)  → 바로 반환 (빠름)
    └─ 캐시 없음 (MISS) → API 호출 → 캐시 저장 → 반환
-3. 10분 후 캐시 만료 → 다음 요청 시 다시 API 호출
+3. 30분 후 캐시 만료 → 다음 요청 시 다시 API 호출
 ```
 
 ### 왜 이 방식인가?
@@ -49,8 +49,8 @@
 
 ```
 하루 = 1440분
-캐시 유효시간 = 10분
-위치당 최대 호출 = 1440 ÷ 10 = 144회/일
+캐시 유효시간 = 30분
+위치당 최대 호출 = 1440 ÷ 30 = 48회/일
 ```
 
 | 사용자 수 | 같은 위치 요청 | API 호출 |
@@ -140,11 +140,11 @@ MariaDB                         Firebase FCM
 ```kotlin
 // CacheConfig.kt
 Caffeine.newBuilder()
-    .expireAfterWrite(10, TimeUnit.MINUTES)  // 10분 후 만료
+    .expireAfterWrite(30, TimeUnit.MINUTES)  // 30분 후 만료
     .maximumSize(1000)                        // 최대 1000개 항목
 ```
 
 | 설정 | 값 | 설명 |
 |------|---|------|
-| `expireAfterWrite` | 10분 | 저장 후 10분 지나면 만료 |
+| `expireAfterWrite` | 30분 | 저장 후 30분 지나면 만료 |
 | `maximumSize` | 1000 | LRU로 오래된 항목 제거 |

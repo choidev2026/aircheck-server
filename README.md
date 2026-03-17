@@ -12,6 +12,8 @@
 
 ## 아키텍처
 
+> 📖 상세 문서: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
 ### 멀티모듈 + 헥사고날 (Port-Adapter)
 
 ```

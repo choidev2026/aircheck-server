@@ -45,8 +45,9 @@
 | `:domain` | Port 인터페이스, 도메인 모델 | 순수 Kotlin, 의존성 없음 |
 | `:application` | UseCase 구현 | 비즈니스 로직 |
 | `:adapter-in` | 외부 → 앱 | Controller, Scheduler |
-| `:adapter-out` | 앱 → 외부 (인프라) | DB, FCM |
+| `:adapter-out` | 앱 → 외부 (푸시) | FCM |
 | `:adapter-out-weather` | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
+| `:adapter-out-persistence` | 앱 → 외부 (DB) | JPA, MariaDB |
 | `:app` | 부트스트랩 | 설정, DI 조립 |
 
 ### 의존성 규칙 (컴파일 타임 강제)
@@ -93,13 +94,15 @@
   - [`OpenMeteoAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — 날씨 API
   - [`AirKoreaAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 미세먼지 API
 
-**[:adapter-out](adapter-out/)** — 인프라 어댑터 (FCM, DB)
+**[:adapter-out](adapter-out/)** — 푸시 어댑터
 - [`out/api/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
-  - [`FcmAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt) — 푸시 알림
-- [`out/persistence/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/) — DB 접근
-  - [`PushSubscriptionEntity.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
-  - [`PushSubscriptionRepository.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionRepository.kt)
-  - [`PushSubscriptionAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionAdapter.kt)
+  - [`FcmAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt) — FCM 푸시 알림
+
+**[:adapter-out-persistence](adapter-out-persistence/)** — DB 어댑터
+- [`out/persistence/`](adapter-out-persistence/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/)
+  - [`PushSubscriptionEntity.kt`](adapter-out-persistence/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
+  - [`PushSubscriptionRepository.kt`](adapter-out-persistence/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionRepository.kt)
+  - [`PushSubscriptionAdapter.kt`](adapter-out-persistence/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionAdapter.kt)
 
 **[:app](app/)** — 부트스트랩 모듈
 - [`AircheckServerApplication.kt`](app/src/main/kotlin/com/seriouschoi/aircheck/AircheckServerApplication.kt)
@@ -153,13 +156,14 @@ java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 
 ## 왜 이렇게 나눴나?
 
-### 1. adapter-in / adapter-out 분리
+### 1. adapter 모듈 분리
 
-| 모듈 | 방향 | 예시 |
+| 모듈 | 방향 | 내용 |
 |------|------|------|
 | adapter-in | 외부 → 앱 | REST API, Scheduler |
-| adapter-out | 앱 → 외부 | DB, FCM |
+| adapter-out | 앱 → 외부 (푸시) | FCM |
 | adapter-out-weather | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
+| adapter-out-persistence | 앱 → 외부 (DB) | JPA |
 
 ### 2. 날씨 API 교체 용이
 

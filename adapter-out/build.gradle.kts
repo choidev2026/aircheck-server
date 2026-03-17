@@ -1,24 +1,16 @@
 plugins {
     kotlin("jvm")
     kotlin("plugin.spring")
-    kotlin("plugin.serialization")
-    kotlin("plugin.jpa")
 }
 
 dependencies {
     implementation(project(":domain"))
     
     // Spring
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework:spring-context:6.2.4")
     
-    // Kotlin
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    
-    // Database
-    runtimeOnly("org.mariadb.jdbc:mariadb-java-client:3.3.3")
-    
-    // HTTP Client
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Jakarta (for @PostConstruct)
+    implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
     
     // Firebase Admin (FCM)
     implementation("com.google.firebase:firebase-admin:9.3.0")

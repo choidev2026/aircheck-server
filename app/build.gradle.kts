@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":adapter-in"))
     implementation(project(":adapter-out"))
     implementation(project(":adapter-out-weather"))
+    implementation(project(":adapter-out-airquality"))
     implementation(project(":adapter-out-persistence"))
     
     // Spring Boot

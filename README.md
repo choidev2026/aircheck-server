@@ -49,7 +49,8 @@
 | `:application` | UseCase 구현 | 비즈니스 로직 |
 | `:adapter-in` | 외부 → 앱 | Controller, Scheduler |
 | `:adapter-out` | 앱 → 외부 (푸시) | FCM |
-| `:adapter-out-weather` | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
+| `:adapter-out-weather` | 앱 → 외부 (날씨) | OpenMeteo |
+| `:adapter-out-airquality` | 앱 → 외부 (미세먼지) | AirKorea |
 | `:adapter-out-persistence` | 앱 → 외부 (DB) | JPA, MariaDB |
 | `:app` | 부트스트랩 | 설정, DI 조립 |
 
@@ -82,10 +83,13 @@
   - [`CacheRefreshScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/CacheRefreshScheduler.kt)
   - [`PushScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/PushScheduler.kt)
 
-**[:adapter-out-weather](adapter-out-weather/)** — 날씨 어댑터 (교체 가능)
+**[:adapter-out-weather](adapter-out-weather/)** — 날씨 어댑터 (→ 기상청 교체 예정)
 - [`out/api/`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
-  - [`OpenMeteoAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — 날씨 API
-  - [`AirKoreaAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 미세먼지 API
+  - [`OpenMeteoAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — Open-Meteo API
+
+**[:adapter-out-airquality](adapter-out-airquality/)** — 미세먼지 어댑터
+- [`out/api/`](adapter-out-airquality/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
+  - [`AirKoreaAdapter.kt`](adapter-out-airquality/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 에어코리아 API
 
 **[:adapter-out](adapter-out/)** — 푸시 어댑터
 - [`out/api/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)

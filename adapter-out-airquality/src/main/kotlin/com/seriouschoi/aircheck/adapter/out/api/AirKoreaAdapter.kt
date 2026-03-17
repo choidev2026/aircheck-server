@@ -114,19 +114,41 @@ class AirKoreaAdapter(
         }
     }
 
-    private fun findNearestStation(lat: Double, lng: Double): Pair<String, StationInfo>? {
+    /**
+     * 가까운 측정소 N개를 거리순으로 반환
+     */
+    private fun findNearestStations(lat: Double, lng: Double, limit: Int = 5): List<Pair<String, StationInfo>> {
         if (stationCache.isEmpty()) loadStationCoordinates()
         
-        return stationCache.minByOrNull { (_, info) ->
-            Math.sqrt(Math.pow(lat - info.lat, 2.0) + Math.pow(lng - info.lng, 2.0))
-        }?.toPair()
+        return stationCache.entries
+            .sortedBy { (_, info) ->
+                Math.sqrt(Math.pow(lat - info.lat, 2.0) + Math.pow(lng - info.lng, 2.0))
+            }
+            .take(limit)
+            .map { it.key to it.value }
     }
-    
-    private fun <K, V> Map.Entry<K, V>.toPair() = Pair(key, value)
 
     override fun getAirQuality(lat: Double, lng: Double): AirQualityResponse? {
-        val (stationName, stationInfo) = findNearestStation(lat, lng) ?: return null
+        val nearbyStations = findNearestStations(lat, lng, limit = 5)
+        if (nearbyStations.isEmpty()) return null
         
+        // 가까운 측정소부터 순서대로 시도
+        for ((stationName, stationInfo) in nearbyStations) {
+            val result = fetchFromStation(stationName, stationInfo)
+            if (result != null && (result.pm10 != null || result.pm25 != null)) {
+                return result
+            }
+            log.debug("측정소 {} 데이터 없음, 다음 측정소 시도", stationName)
+        }
+        
+        log.warn("주변 {}개 측정소 모두 데이터 없음 (lat={}, lng={})", nearbyStations.size, lat, lng)
+        return null
+    }
+    
+    /**
+     * 특정 측정소에서 대기질 정보 조회
+     */
+    private fun fetchFromStation(stationName: String, stationInfo: StationInfo): AirQualityResponse? {
         val url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty" +
                 "?stationName=${URLEncoder.encode(stationName, "UTF-8")}" +
                 "&dataTerm=DAILY&pageNo=1&numOfRows=1&returnType=json" +
@@ -138,7 +160,6 @@ class AirKoreaAdapter(
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
             val item = parsed.response?.body?.items?.firstOrNull() ?: return null
             
-            // 측정소 정보는 캐시에서, 밀도는 API에서 (등급은 앱에서 계산)
             AirQualityResponse(
                 stationName = stationName,
                 sidoName = stationInfo.sidoName,
@@ -147,7 +168,7 @@ class AirKoreaAdapter(
                 pm25 = item.pm25Value.toIntOrNull()
             )
         } catch (e: Exception) {
-            log.error("에어코리아 API 호출 실패: ${e.message}")
+            log.error("측정소 {} 조회 실패: {}", stationName, e.message)
             null
         }
     }

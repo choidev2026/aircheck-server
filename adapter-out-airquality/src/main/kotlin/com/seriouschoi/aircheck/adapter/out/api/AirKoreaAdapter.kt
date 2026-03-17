@@ -1,6 +1,5 @@
 package com.seriouschoi.aircheck.adapter.out.api
 
-import com.seriouschoi.aircheck.domain.model.AirGrade
 import com.seriouschoi.aircheck.domain.model.AirQualityResponse
 import com.seriouschoi.aircheck.domain.port.out.AirQualityPort
 import kotlinx.serialization.Serializable
@@ -9,7 +8,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Component
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
@@ -128,25 +126,13 @@ class AirKoreaAdapter(
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
             val item = parsed.response?.body?.items?.firstOrNull() ?: return null
             
-            val pm10 = item.pm10Value.toIntOrNull()
-            val pm25 = item.pm25Value.toIntOrNull()
-            val aqi = item.khaiValue.toIntOrNull()
-            
-            val pm10Grade = AirGrade.fromPm10(pm10)
-            val pm25Grade = AirGrade.fromPm25(pm25)
-            val aqiGrade = AirGrade.fromAqi(aqi)
-            
+            // 밀도 값만 반환 (등급은 앱에서 계산)
             AirQualityResponse(
                 stationName = item.stationName,
                 sidoName = item.sidoName,
                 dataTime = item.dataTime,
-                pm10 = pm10,
-                pm25 = pm25,
-                aqi = aqi,
-                pm10Grade = pm10Grade,
-                pm25Grade = pm25Grade,
-                aqiGrade = aqiGrade,
-                worstGrade = AirGrade.worst(pm10Grade, pm25Grade, aqiGrade)
+                pm10 = item.pm10Value.toIntOrNull(),
+                pm25 = item.pm25Value.toIntOrNull()
             )
         } catch (e: Exception) {
             log.error("에어코리아 API 호출 실패: ${e.message}")

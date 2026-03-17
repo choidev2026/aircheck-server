@@ -24,6 +24,9 @@ dependencies {
     
     // Caffeine Cache
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    
+    // OpenAPI / Swagger UI (#15)
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
 }
 
 tasks.getByName<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {

@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":application"))
     implementation(project(":adapter-in"))
     implementation(project(":adapter-out"))
+    implementation(project(":adapter-out-weather"))
     
     // Spring Boot
     implementation("org.springframework.boot:spring-boot-starter-web")

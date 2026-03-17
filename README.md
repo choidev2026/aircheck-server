@@ -20,25 +20,22 @@
                     │  (부트스트랩, DI 조립)   │
                     └───────────┬─────────────┘
                                 │
-        ┌───────────────────────┼───────────────────────┐
-        │                       │                       │
-        ▼                       ▼                       ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│  :adapter-in  │      │ :application  │      │ :adapter-out  │
-│  (외부 → 앱)  │      │   (UseCase)   │      │  (앱 → 외부)  │
-├───────────────┤      ├───────────────┤      ├───────────────┤
-│ • Controller  │      │ • Service     │      │ • API Client  │
-│ • Scheduler   │      │               │      │ • JPA         │
-│               │      │               │      │ • FCM         │
-└───────┬───────┘      └───────┬───────┘      └───────┬───────┘
-        │                      │                      │
-        └──────────────────────┴──────────────────────┘
-                               │
-                               ▼
-                      ┌───────────────┐
-                      │   :domain     │
-                      │  (Port/Model) │
-                      └───────────────┘
+    ┌───────────────────────────┼───────────────────────────┐
+    │               │           │           │               │
+    ▼               ▼           ▼           ▼               ▼
+┌────────┐  ┌────────────┐ ┌─────────┐ ┌─────────┐  ┌────────┐
+│:adapter│  │:adapter-out│ │:applica-│ │:adapter │  │:domain │
+│  -in   │  │  -weather  │ │  tion   │ │  -out   │  │        │
+├────────┤  ├────────────┤ ├─────────┤ ├─────────┤  ├────────┤
+│REST API│  │ OpenMeteo  │ │ Service │ │  FCM    │  │ Port   │
+│Schedule│  │ AirKorea   │ │         │ │  JPA    │  │ Model  │
+└────────┘  └────────────┘ └─────────┘ └─────────┘  └────────┘
+    │               │           │           │
+    └───────────────┴───────────┴───────────┘
+                        │
+                        ▼
+                   depends on
+                    :domain
 ```
 
 ### 모듈별 역할 및 의존성
@@ -48,7 +45,8 @@
 | `:domain` | Port 인터페이스, 도메인 모델 | 순수 Kotlin, 의존성 없음 |
 | `:application` | UseCase 구현 | 비즈니스 로직 |
 | `:adapter-in` | 외부 → 앱 | Controller, Scheduler |
-| `:adapter-out` | 앱 → 외부 | API 클라이언트, DB, FCM |
+| `:adapter-out` | 앱 → 외부 (인프라) | DB, FCM |
+| `:adapter-out-weather` | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
 | `:app` | 부트스트랩 | 설정, DI 조립 |
 
 ### 의존성 규칙 (컴파일 타임 강제)
@@ -90,10 +88,13 @@
   - [`CacheRefreshScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/CacheRefreshScheduler.kt)
   - [`PushScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/PushScheduler.kt)
 
-**[:adapter-out](adapter-out/)** — 아웃바운드 어댑터 (앱 → 외부)
-- [`out/api/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/) — 외부 API 호출
-  - [`OpenMeteoAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — 날씨 API
-  - [`AirKoreaAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 미세먼지 API
+**[:adapter-out-weather](adapter-out-weather/)** — 날씨 어댑터 (교체 가능)
+- [`out/api/`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
+  - [`OpenMeteoAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — 날씨 API
+  - [`AirKoreaAdapter.kt`](adapter-out-weather/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 미세먼지 API
+
+**[:adapter-out](adapter-out/)** — 인프라 어댑터 (FCM, DB)
+- [`out/api/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
   - [`FcmAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt) — 푸시 알림
 - [`out/persistence/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/) — DB 접근
   - [`PushSubscriptionEntity.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
@@ -157,23 +158,24 @@ java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 | 모듈 | 방향 | 예시 |
 |------|------|------|
 | adapter-in | 외부 → 앱 | REST API, Scheduler |
-| adapter-out | 앱 → 외부 | 공공 API, DB, FCM |
+| adapter-out | 앱 → 외부 | DB, FCM |
+| adapter-out-weather | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
 
-**장점**: 날씨 API 바뀌면 `adapter-out`만 수정!
-
-### 2. 컴파일 타임 의존성 강제
-
-```kotlin
-// adapter-in에서 adapter-out import 불가능!
-import com.seriouschoi.aircheck.adapter.out.api.AirKoreaAdapter  // ❌ 컴파일 에러
-```
-
-### 3. 모듈 교체 용이
+### 2. 날씨 API 교체 용이
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    // implementation(project(":adapter-out"))  // Open-Meteo
-    implementation(project(":adapter-out-kma")) // 기상청으로 교체!
+    // implementation(project(":adapter-out-weather"))  // Open-Meteo
+    implementation(project(":adapter-out-kma"))         // 기상청으로 교체!
 }
+```
+
+**FCM/DB는 그대로, 날씨만 교체!**
+
+### 3. 컴파일 타임 의존성 강제
+
+```kotlin
+// adapter-in에서 adapter-out-weather import 불가능!
+import com.seriouschoi.aircheck.adapter.out.api.AirKoreaAdapter  // ❌ 컴파일 에러
 ```

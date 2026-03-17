@@ -8,10 +8,26 @@ HTTP에서 HTTPS로 전환하는 과정을 기록한다.
 
 | 용어 | 설명 |
 |------|------|
-| `nginx` | 웹 서버 + 리버스 프록시. 클라이언트 요청을 받아서 뒤에 있는 앱(8080)으로 전달 |
-| `certbot` | Let's Encrypt SSL 인증서를 자동으로 발급/갱신해주는 도구 |
-| `Let's Encrypt` | 무료 SSL 인증서 발급 기관 |
+| `nginx` | Engine X. 웹 서버 + 리버스 프록시. 클라이언트 요청을 받아서 뒤에 있는 앱(8080)으로 전달 |
+| `certbot` | Certificate + Robot. Let's Encrypt SSL 인증서를 자동으로 발급/갱신해주는 도구 |
+| `Let's Encrypt` | 무료 SSL 인증서 발급 기관 (비영리, 2015년 시작) |
 | `리버스 프록시` | 앞에서 요청을 받아 뒤의 서버로 전달하는 중계자 |
+| `SSL/TLS` | Secure Sockets Layer / Transport Layer Security. 암호화 통신 프로토콜 |
+
+---
+
+## Nginx 역사
+
+```
+2004년: Igor Sysoev (러시아)가 개발
+문제: Apache가 동시 접속 10,000개 처리 못함 (C10K 문제)
+해결: 이벤트 기반, 비동기 아키텍처
+
+Apache: 요청마다 프로세스/스레드 생성 → 무거움
+Nginx:  단일 스레드 + 이벤트 루프 → 가벼움
+
+현재: 전 세계 웹서버 점유율 1위 (2024년 기준)
+```
 
 ---
 

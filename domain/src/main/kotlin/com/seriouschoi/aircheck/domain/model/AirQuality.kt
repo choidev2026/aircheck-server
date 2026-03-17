@@ -27,12 +27,12 @@ data class AirQualityResponse(
     @Schema(description = "미세먼지(PM10) 밀도 (μg/m³)", example = "45")
     val pm10: Int?,
     
-    @Schema(description = "PM10 측정소 (주변 측정소에서 가져온 경우)", example = "소사본동")
-    val pm10Station: String? = null,
+    @Schema(description = "PM10 측정소", example = "중구")
+    val pm10Station: String,
     
     @Schema(description = "초미세먼지(PM2.5) 밀도 (μg/m³)", example = "23")
     val pm25: Int?,
     
-    @Schema(description = "PM2.5 측정소 (주변 측정소에서 가져온 경우)", example = "소사본동")
-    val pm25Station: String? = null
+    @Schema(description = "PM2.5 측정소", example = "소사본동")
+    val pm25Station: String
 )

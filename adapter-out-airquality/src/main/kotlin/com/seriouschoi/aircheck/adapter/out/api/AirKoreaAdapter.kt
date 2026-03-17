@@ -136,11 +136,11 @@ class AirKoreaAdapter(
         val (mainStation, mainInfo) = nearbyStations.first()
         val mainData = fetchRawData(mainStation)
         
-        // 결과 변수
+        // 결과 변수 (기본값: 메인 측정소)
         var pm10: Int? = mainData?.pm10Value?.toIntOrNull()
-        var pm10Station: String? = null
+        var pm10Station: String = mainStation
         var pm25: Int? = mainData?.pm25Value?.toIntOrNull()
-        var pm25Station: String? = null
+        var pm25Station: String = mainStation
         var dataTime = mainData?.dataTime ?: ""
         
         // PM10이 없으면 주변 측정소에서 채우기
@@ -150,7 +150,7 @@ class AirKoreaAdapter(
                 val value = data?.pm10Value?.toIntOrNull()
                 if (value != null) {
                     pm10 = value
-                    pm10Station = station
+                    pm10Station = station  // 대체 측정소
                     if (dataTime.isEmpty()) dataTime = data.dataTime
                     log.debug("PM10: {} 측정소에서 가져옴 (값: {})", station, value)
                     break
@@ -165,7 +165,7 @@ class AirKoreaAdapter(
                 val value = data?.pm25Value?.toIntOrNull()
                 if (value != null) {
                     pm25 = value
-                    pm25Station = station
+                    pm25Station = station  // 대체 측정소
                     if (dataTime.isEmpty()) dataTime = data.dataTime
                     log.debug("PM25: {} 측정소에서 가져옴 (값: {})", station, value)
                     break

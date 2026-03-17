@@ -55,9 +55,10 @@ jobs:
           ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} \
             "sudo systemctl restart aircheck"
       
-      # 8. 헬스 체크
+      # 8. 헬스 체크 (앱 시작에 ~20초 소요)
       - name: Health Check
         run: |
-          sleep 15
+          echo "Waiting for app to start..."
+          sleep 30
           curl -f http://${{ secrets.LIGHTSAIL_HOST }}:8080/actuator/health || exit 1
           echo "✅ Deploy successful!"

@@ -15,27 +15,28 @@
 ### 멀티모듈 + 헥사고날 (Port-Adapter)
 
 ```
-                    ┌─────────────────────────┐
-                    │          :app           │
-                    │  (부트스트랩, DI 조립)   │
-                    └───────────┬─────────────┘
-                                │
-    ┌───────────────────────────┼───────────────────────────┐
-    │               │           │           │               │
-    ▼               ▼           ▼           ▼               ▼
-┌────────┐  ┌────────────┐ ┌─────────┐ ┌─────────┐  ┌────────┐
-│:adapter│  │:adapter-out│ │:applica-│ │:adapter │  │:domain │
-│  -in   │  │  -weather  │ │  tion   │ │  -out   │  │        │
-├────────┤  ├────────────┤ ├─────────┤ ├─────────┤  ├────────┤
-│REST API│  │ OpenMeteo  │ │ Service │ │  FCM    │  │ Port   │
-│Schedule│  │ AirKorea   │ │         │ │  JPA    │  │ Model  │
-└────────┘  └────────────┘ └─────────┘ └─────────┘  └────────┘
-    │               │           │           │
-    └───────────────┴───────────┴───────────┘
-                        │
-                        ▼
-                   depends on
-                    :domain
+                         ┌─────────────────────────┐
+                         │          :app           │
+                         │  (부트스트랩, DI 조립)   │
+                         └───────────┬─────────────┘
+                                     │
+    ┌────────────┬───────────────────┼───────────────────┬────────────┐
+    │            │                   │                   │            │
+    ▼            ▼                   ▼                   ▼            ▼
+┌────────┐ ┌──────────┐ ┌─────────────────┐ ┌──────────┐ ┌────────────┐
+│:adapter│ │:adapter- │ │  :application   │ │:adapter- │ │ :adapter-  │
+│  -in   │ │out-weather│ │                 │ │   out    │ │out-persist-│
+├────────┤ ├──────────┤ ├─────────────────┤ ├──────────┤ │    ence    │
+│REST API│ │ OpenMeteo│ │    Service      │ │   FCM    │ ├────────────┤
+│Schedule│ │ AirKorea │ │                 │ │          │ │    JPA     │
+└────────┘ └──────────┘ └─────────────────┘ └──────────┘ └────────────┘
+    │            │               │                │            │
+    └────────────┴───────────────┴────────────────┴────────────┘
+                                 │
+                                 ▼
+                            ┌─────────┐
+                            │ :domain │
+                            └─────────┘
 ```
 
 ### 모듈별 역할 및 의존성
@@ -49,16 +50,6 @@
 | `:adapter-out-weather` | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
 | `:adapter-out-persistence` | 앱 → 외부 (DB) | JPA, MariaDB |
 | `:app` | 부트스트랩 | 설정, DI 조립 |
-
-### 의존성 규칙 (컴파일 타임 강제)
-
-```
-✅ adapter-in  → domain (Controller가 UseCase 호출)
-✅ adapter-out → domain (Adapter가 Port 구현)
-✅ application → domain (Service가 Port 사용)
-❌ adapter-in  → adapter-out (컴파일 에러!)
-❌ application → adapter-* (컴파일 에러!)
-```
 
 ### 디렉토리 구조
 
@@ -154,32 +145,4 @@ docker-compose up -d
 java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 ```
 
-## 왜 이렇게 나눴나?
 
-### 1. adapter 모듈 분리
-
-| 모듈 | 방향 | 내용 |
-|------|------|------|
-| adapter-in | 외부 → 앱 | REST API, Scheduler |
-| adapter-out | 앱 → 외부 (푸시) | FCM |
-| adapter-out-weather | 앱 → 외부 (날씨) | OpenMeteo, AirKorea |
-| adapter-out-persistence | 앱 → 외부 (DB) | JPA |
-
-### 2. 날씨 API 교체 용이
-
-```kotlin
-// build.gradle.kts
-dependencies {
-    // implementation(project(":adapter-out-weather"))  // Open-Meteo
-    implementation(project(":adapter-out-kma"))         // 기상청으로 교체!
-}
-```
-
-**FCM/DB는 그대로, 날씨만 교체!**
-
-### 3. 컴파일 타임 의존성 강제
-
-```kotlin
-// adapter-in에서 adapter-out-weather import 불가능!
-import com.seriouschoi.aircheck.adapter.out.api.AirKoreaAdapter  // ❌ 컴파일 에러
-```

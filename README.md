@@ -57,53 +57,45 @@
 
 ### 디렉토리 구조
 
-```
-aircheck-server/
-├── domain/                         # 도메인 모듈
-│   └── src/main/kotlin/.../domain/
-│       ├── model/
-│       │   ├── AirQuality.kt
-│       │   └── Weather.kt
-│       └── port/
-│           ├── in/                 # 인바운드 포트 (UseCase)
-│           │   ├── GetWeatherUseCase.kt
-│           │   └── PushSubscriptionUseCase.kt
-│           └── out/                # 아웃바운드 포트
-│               ├── WeatherPort.kt
-│               ├── AirQualityPort.kt
-│               ├── PushNotificationPort.kt
-│               └── PushSubscriptionPort.kt
-│
-├── application/                    # 애플리케이션 모듈
-│   └── src/main/kotlin/.../application/
-│       ├── WeatherService.kt       # GetWeatherUseCase 구현
-│       └── PushSubscriptionService.kt
-│
-├── adapter/                        # 어댑터 모듈
-│   └── src/main/kotlin/.../adapter/
-│       ├── in/
-│       │   ├── web/
-│       │   │   ├── WeatherController.kt
-│       │   │   └── PushController.kt
-│       │   └── scheduler/
-│       │       ├── CacheRefreshScheduler.kt
-│       │       └── PushScheduler.kt
-│       └── out/
-│           ├── api/
-│           │   ├── OpenMeteoAdapter.kt
-│           │   ├── AirKoreaAdapter.kt
-│           │   └── FcmAdapter.kt
-│           └── persistence/
-│               ├── PushSubscriptionEntity.kt
-│               ├── PushSubscriptionRepository.kt
-│               └── PushSubscriptionAdapter.kt
-│
-└── app/                            # 부트스트랩 모듈
-    └── src/main/kotlin/.../
-        ├── AircheckServerApplication.kt
-        └── config/
-            └── CacheConfig.kt
-```
+> 📁 클릭하면 해당 파일로 이동
+
+**[:domain](domain/)** — 도메인 모듈
+- [`model/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/)
+  - [`AirQuality.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/AirQuality.kt)
+  - [`Weather.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/Weather.kt)
+- [`port/in/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/) — 인바운드 포트 (UseCase)
+  - [`GetWeatherUseCase.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/GetWeatherUseCase.kt)
+  - [`PushSubscriptionUseCase.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/PushSubscriptionUseCase.kt)
+- [`port/out/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/) — 아웃바운드 포트
+  - [`WeatherPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/WeatherPort.kt)
+  - [`AirQualityPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/AirQualityPort.kt)
+  - [`PushNotificationPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/PushNotificationPort.kt)
+  - [`PushSubscriptionPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/PushSubscriptionPort.kt)
+
+**[:application](application/)** — 애플리케이션 모듈
+- [`WeatherService.kt`](application/src/main/kotlin/com/seriouschoi/aircheck/application/WeatherService.kt) — GetWeatherUseCase 구현
+- [`PushSubscriptionService.kt`](application/src/main/kotlin/com/seriouschoi/aircheck/application/PushSubscriptionService.kt)
+
+**[:adapter](adapter/)** — 어댑터 모듈
+- [`in/web/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/)
+  - [`WeatherController.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/WeatherController.kt)
+  - [`PushController.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/PushController.kt)
+- [`in/scheduler/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/)
+  - [`CacheRefreshScheduler.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/CacheRefreshScheduler.kt)
+  - [`PushScheduler.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/PushScheduler.kt)
+- [`out/api/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
+  - [`OpenMeteoAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt)
+  - [`AirKoreaAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt)
+  - [`FcmAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt)
+- [`out/persistence/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/)
+  - [`PushSubscriptionEntity.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
+  - [`PushSubscriptionRepository.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionRepository.kt)
+  - [`PushSubscriptionAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionAdapter.kt)
+
+**[:app](app/)** — 부트스트랩 모듈
+- [`AircheckServerApplication.kt`](app/src/main/kotlin/com/seriouschoi/aircheck/AircheckServerApplication.kt)
+- [`config/`](app/src/main/kotlin/com/seriouschoi/aircheck/config/)
+  - [`CacheConfig.kt`](app/src/main/kotlin/com/seriouschoi/aircheck/config/CacheConfig.kt)
 
 ## API 엔드포인트
 

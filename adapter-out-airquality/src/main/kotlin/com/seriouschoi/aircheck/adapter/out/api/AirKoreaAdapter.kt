@@ -98,8 +98,9 @@ class AirKoreaAdapter(
             val parsed = json.decodeFromString<StationResponse>(response)
             
             stationCache = parsed.response?.body?.items?.mapNotNull { station ->
-                val lat = station.dmX.toDoubleOrNull()
-                val lng = station.dmY.toDoubleOrNull()
+                // dmX = 경도(longitude), dmY = 위도(latitude)
+                val lng = station.dmX.toDoubleOrNull()
+                val lat = station.dmY.toDoubleOrNull()
                 if (lat != null && lng != null) {
                     // 주소에서 시도명 추출 (예: "서울 중구 덕수궁길 15" → "서울")
                     val sidoName = station.addr.split(" ").firstOrNull() ?: ""

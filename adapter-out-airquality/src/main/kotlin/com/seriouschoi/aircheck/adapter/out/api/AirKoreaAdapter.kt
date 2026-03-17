@@ -132,23 +132,68 @@ class AirKoreaAdapter(
         val nearbyStations = findNearestStations(lat, lng, limit = 5)
         if (nearbyStations.isEmpty()) return null
         
-        // 가까운 측정소부터 순서대로 시도
-        for ((stationName, stationInfo) in nearbyStations) {
-            val result = fetchFromStation(stationName, stationInfo)
-            if (result != null && (result.pm10 != null || result.pm25 != null)) {
-                return result
+        // 메인 측정소 (가장 가까운 곳)
+        val (mainStation, mainInfo) = nearbyStations.first()
+        val mainData = fetchRawData(mainStation)
+        
+        // 결과 변수
+        var pm10: Int? = mainData?.pm10Value?.toIntOrNull()
+        var pm10Station: String? = null
+        var pm25: Int? = mainData?.pm25Value?.toIntOrNull()
+        var pm25Station: String? = null
+        var dataTime = mainData?.dataTime ?: ""
+        
+        // PM10이 없으면 주변 측정소에서 채우기
+        if (pm10 == null) {
+            for ((station, _) in nearbyStations.drop(1)) {
+                val data = fetchRawData(station)
+                val value = data?.pm10Value?.toIntOrNull()
+                if (value != null) {
+                    pm10 = value
+                    pm10Station = station
+                    if (dataTime.isEmpty()) dataTime = data.dataTime
+                    log.debug("PM10: {} 측정소에서 가져옴 (값: {})", station, value)
+                    break
+                }
             }
-            log.debug("측정소 {} 데이터 없음, 다음 측정소 시도", stationName)
         }
         
-        log.warn("주변 {}개 측정소 모두 데이터 없음 (lat={}, lng={})", nearbyStations.size, lat, lng)
-        return null
+        // PM25가 없으면 주변 측정소에서 채우기
+        if (pm25 == null) {
+            for ((station, _) in nearbyStations.drop(1)) {
+                val data = fetchRawData(station)
+                val value = data?.pm25Value?.toIntOrNull()
+                if (value != null) {
+                    pm25 = value
+                    pm25Station = station
+                    if (dataTime.isEmpty()) dataTime = data.dataTime
+                    log.debug("PM25: {} 측정소에서 가져옴 (값: {})", station, value)
+                    break
+                }
+            }
+        }
+        
+        // 둘 다 없으면 실패
+        if (pm10 == null && pm25 == null) {
+            log.warn("주변 {}개 측정소 모두 PM 데이터 없음 (lat={}, lng={})", nearbyStations.size, lat, lng)
+            return null
+        }
+        
+        return AirQualityResponse(
+            stationName = mainStation,
+            sidoName = mainInfo.sidoName,
+            dataTime = dataTime,
+            pm10 = pm10,
+            pm10Station = pm10Station,
+            pm25 = pm25,
+            pm25Station = pm25Station
+        )
     }
     
     /**
-     * 특정 측정소에서 대기질 정보 조회
+     * 측정소에서 원시 데이터 조회 (AirKoreaItem 반환)
      */
-    private fun fetchFromStation(stationName: String, stationInfo: StationInfo): AirQualityResponse? {
+    private fun fetchRawData(stationName: String): AirKoreaItem? {
         val url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty" +
                 "?stationName=${URLEncoder.encode(stationName, "UTF-8")}" +
                 "&dataTerm=DAILY&pageNo=1&numOfRows=1&returnType=json" +
@@ -158,15 +203,7 @@ class AirKoreaAdapter(
         return try {
             val response = get(url)
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
-            val item = parsed.response?.body?.items?.firstOrNull() ?: return null
-            
-            AirQualityResponse(
-                stationName = stationName,
-                sidoName = stationInfo.sidoName,
-                dataTime = item.dataTime,
-                pm10 = item.pm10Value.toIntOrNull(),
-                pm25 = item.pm25Value.toIntOrNull()
-            )
+            parsed.response?.body?.items?.firstOrNull()
         } catch (e: Exception) {
             log.error("측정소 {} 조회 실패: {}", stationName, e.message)
             null

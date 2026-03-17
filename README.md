@@ -15,55 +15,61 @@
 ### 멀티모듈 + 헥사고날 (Port-Adapter)
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         :app                                     │
-│              (부트스트랩, 설정, 의존성 조립)                      │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ depends on
-            ┌───────────────┼───────────────┐
-            ▼               ▼               ▼
-┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-│   :adapter    │  │ :application  │  │   :domain     │
-│               │  │               │  │               │
-│ ┌───────────┐ │  │ ┌───────────┐ │  │ ┌───────────┐ │
-│ │Controller │ │  │ │  Service  │ │  │ │   Model   │ │
-│ │ Scheduler │ │  │ │ (UseCase  │ │  │ │   Port    │ │
-│ │   API     │ │  │ │   Impl)   │ │  │ │(interface)│ │
-│ │   JPA     │ │  │ └───────────┘ │  │ └───────────┘ │
-│ └───────────┘ │  └───────┬───────┘  └───────▲───────┘
-└───────┬───────┘          │                  │
-        │                  │                  │
-        └──────────────────┴──────────────────┘
-                    depends on :domain only
+                    ┌─────────────────────────┐
+                    │          :app           │
+                    │  (부트스트랩, DI 조립)   │
+                    └───────────┬─────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│  :adapter-in  │      │ :application  │      │ :adapter-out  │
+│  (외부 → 앱)  │      │   (UseCase)   │      │  (앱 → 외부)  │
+├───────────────┤      ├───────────────┤      ├───────────────┤
+│ • Controller  │      │ • Service     │      │ • API Client  │
+│ • Scheduler   │      │               │      │ • JPA         │
+│               │      │               │      │ • FCM         │
+└───────┬───────┘      └───────┬───────┘      └───────┬───────┘
+        │                      │                      │
+        └──────────────────────┴──────────────────────┘
+                               │
+                               ▼
+                      ┌───────────────┐
+                      │   :domain     │
+                      │  (Port/Model) │
+                      └───────────────┘
 ```
 
 ### 모듈별 역할 및 의존성
 
-| 모듈 | 역할 | 의존성 |
-|------|------|--------|
-| `:domain` | 도메인 모델, Port 인터페이스 | 없음 (순수 Kotlin) |
-| `:application` | UseCase 구현 | `:domain` |
-| `:adapter` | Controller, API 클라이언트, JPA | `:domain` |
-| `:app` | 부트스트랩, 설정, DI 조립 | 모든 모듈 |
+| 모듈 | 역할 | 설명 |
+|------|------|------|
+| `:domain` | Port 인터페이스, 도메인 모델 | 순수 Kotlin, 의존성 없음 |
+| `:application` | UseCase 구현 | 비즈니스 로직 |
+| `:adapter-in` | 외부 → 앱 | Controller, Scheduler |
+| `:adapter-out` | 앱 → 외부 | API 클라이언트, DB, FCM |
+| `:app` | 부트스트랩 | 설정, DI 조립 |
 
 ### 의존성 규칙 (컴파일 타임 강제)
 
 ```
-✅ application → domain (UseCase가 Port 인터페이스 사용)
-✅ adapter → domain (Adapter가 Port 인터페이스 구현)
-❌ application → adapter (컴파일 에러!)
-❌ domain → 아무것도 (순수)
+✅ adapter-in  → domain (Controller가 UseCase 호출)
+✅ adapter-out → domain (Adapter가 Port 구현)
+✅ application → domain (Service가 Port 사용)
+❌ adapter-in  → adapter-out (컴파일 에러!)
+❌ application → adapter-* (컴파일 에러!)
 ```
 
 ### 디렉토리 구조
 
 > 📁 클릭하면 해당 파일로 이동
 
-**[:domain](domain/)** — 도메인 모듈
+**[:domain](domain/)** — 도메인 모듈 (Port + Model)
 - [`model/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/)
   - [`AirQuality.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/AirQuality.kt)
   - [`Weather.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/model/Weather.kt)
-- [`port/in/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/) — 인바운드 포트 (UseCase)
+- [`port/in/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/) — 인바운드 포트 (UseCase 인터페이스)
   - [`GetWeatherUseCase.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/GetWeatherUseCase.kt)
   - [`PushSubscriptionUseCase.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/in/PushSubscriptionUseCase.kt)
 - [`port/out/`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/) — 아웃바운드 포트
@@ -72,25 +78,27 @@
   - [`PushNotificationPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/PushNotificationPort.kt)
   - [`PushSubscriptionPort.kt`](domain/src/main/kotlin/com/seriouschoi/aircheck/domain/port/out/PushSubscriptionPort.kt)
 
-**[:application](application/)** — 애플리케이션 모듈
-- [`WeatherService.kt`](application/src/main/kotlin/com/seriouschoi/aircheck/application/WeatherService.kt) — GetWeatherUseCase 구현
+**[:application](application/)** — 애플리케이션 모듈 (UseCase 구현)
+- [`WeatherService.kt`](application/src/main/kotlin/com/seriouschoi/aircheck/application/WeatherService.kt)
 - [`PushSubscriptionService.kt`](application/src/main/kotlin/com/seriouschoi/aircheck/application/PushSubscriptionService.kt)
 
-**[:adapter](adapter/)** — 어댑터 모듈
-- [`in/web/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/)
-  - [`WeatherController.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/WeatherController.kt)
-  - [`PushController.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/PushController.kt)
-- [`in/scheduler/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/)
-  - [`CacheRefreshScheduler.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/CacheRefreshScheduler.kt)
-  - [`PushScheduler.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/PushScheduler.kt)
-- [`out/api/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/)
-  - [`OpenMeteoAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt)
-  - [`AirKoreaAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt)
-  - [`FcmAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt)
-- [`out/persistence/`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/)
-  - [`PushSubscriptionEntity.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
-  - [`PushSubscriptionRepository.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionRepository.kt)
-  - [`PushSubscriptionAdapter.kt`](adapter/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionAdapter.kt)
+**[:adapter-in](adapter-in/)** — 인바운드 어댑터 (외부 → 앱)
+- [`in/web/`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/) — REST API (사용자 호출)
+  - [`WeatherController.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/WeatherController.kt)
+  - [`PushController.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/web/PushController.kt)
+- [`in/scheduler/`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/) — 스케줄러
+  - [`CacheRefreshScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/CacheRefreshScheduler.kt)
+  - [`PushScheduler.kt`](adapter-in/src/main/kotlin/com/seriouschoi/aircheck/adapter/in/scheduler/PushScheduler.kt)
+
+**[:adapter-out](adapter-out/)** — 아웃바운드 어댑터 (앱 → 외부)
+- [`out/api/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/) — 외부 API 호출
+  - [`OpenMeteoAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/OpenMeteoAdapter.kt) — 날씨 API
+  - [`AirKoreaAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/AirKoreaAdapter.kt) — 미세먼지 API
+  - [`FcmAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/api/FcmAdapter.kt) — 푸시 알림
+- [`out/persistence/`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/) — DB 접근
+  - [`PushSubscriptionEntity.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionEntity.kt)
+  - [`PushSubscriptionRepository.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionRepository.kt)
+  - [`PushSubscriptionAdapter.kt`](adapter-out/src/main/kotlin/com/seriouschoi/aircheck/adapter/out/persistence/PushSubscriptionAdapter.kt)
 
 **[:app](app/)** — 부트스트랩 모듈
 - [`AircheckServerApplication.kt`](app/src/main/kotlin/com/seriouschoi/aircheck/AircheckServerApplication.kt)
@@ -142,16 +150,30 @@ docker-compose up -d
 java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 ```
 
-## 왜 멀티모듈인가?
+## 왜 이렇게 나눴나?
 
-1. **의존성 컴파일 타임 강제**
-   - adapter에서 application 클래스 import 불가능
-   - 실수로 아키텍처 위반 → 빌드 에러
+### 1. adapter-in / adapter-out 분리
 
-2. **명확한 경계**
-   - 각 모듈의 역할이 명확
-   - 코드 리뷰 시 "이 코드가 여기 있어도 되나?" 판단 쉬움
+| 모듈 | 방향 | 예시 |
+|------|------|------|
+| adapter-in | 외부 → 앱 | REST API, Scheduler |
+| adapter-out | 앱 → 외부 | 공공 API, DB, FCM |
 
-3. **빌드 최적화**
-   - 변경된 모듈만 재빌드
-   - 대규모 프로젝트에서 빌드 시간 단축
+**장점**: 날씨 API 바뀌면 `adapter-out`만 수정!
+
+### 2. 컴파일 타임 의존성 강제
+
+```kotlin
+// adapter-in에서 adapter-out import 불가능!
+import com.seriouschoi.aircheck.adapter.out.api.AirKoreaAdapter  // ❌ 컴파일 에러
+```
+
+### 3. 모듈 교체 용이
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    // implementation(project(":adapter-out"))  // Open-Meteo
+    implementation(project(":adapter-out-kma")) // 기상청으로 교체!
+}
+```

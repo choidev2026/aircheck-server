@@ -7,7 +7,8 @@ plugins {
 dependencies {
     implementation(project(":domain"))
     implementation(project(":application"))
-    implementation(project(":adapter"))
+    implementation(project(":adapter-in"))
+    implementation(project(":adapter-out"))
     
     // Spring Boot
     implementation("org.springframework.boot:spring-boot-starter-web")

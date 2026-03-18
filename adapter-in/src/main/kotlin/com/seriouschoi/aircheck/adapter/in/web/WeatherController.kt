@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -88,4 +90,49 @@ class WeatherController(
     ): ResponseEntity<AirQualityResponse?> {
         return ResponseEntity.ok(weatherUseCase.getAirQuality(lat, lng))
     }
+
+    @Operation(
+        summary = "다중 위치 일괄 조회",
+        description = "여러 위치의 날씨/대기질 정보를 한 번에 조회합니다. " +
+                "최대 10개 위치까지 지원합니다."
+    )
+    @ApiResponses(value = [
+        ApiResponse(
+            responseCode = "200",
+            description = "조회 성공"
+        )
+    ])
+    @PostMapping("/weather/batch")
+    fun getBatchWeather(
+        @RequestBody request: BatchWeatherRequest
+    ): ResponseEntity<List<BatchWeatherItem>> {
+        val results = request.locations.take(10).map { location ->
+            val result = weatherUseCase.getCombined(location.lat, location.lng)
+            BatchWeatherItem(
+                lat = location.lat,
+                lng = location.lng,
+                weather = result.weather,
+                airQuality = result.airQuality
+            )
+        }
+        return ResponseEntity.ok(results)
+    }
 }
+
+// ── 배치 API 모델 ─────────────────────────────────────────────────────────
+
+data class BatchWeatherRequest(
+    val locations: List<LocationRequest>
+)
+
+data class LocationRequest(
+    val lat: Double,
+    val lng: Double
+)
+
+data class BatchWeatherItem(
+    val lat: Double,
+    val lng: Double,
+    val weather: WeatherResponse?,
+    val airQuality: AirQualityResponse?
+)

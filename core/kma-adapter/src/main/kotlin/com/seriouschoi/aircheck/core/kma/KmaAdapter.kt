@@ -1,12 +1,16 @@
 package com.seriouschoi.aircheck.core.kma
 
 import com.seriouschoi.aircheck.core.domain.model.CurrentWeather
+import com.seriouschoi.aircheck.core.domain.model.DailyForecast
 import com.seriouschoi.aircheck.core.domain.model.HourlyForecast
+import com.seriouschoi.aircheck.core.domain.model.MidTermForecast
 import com.seriouschoi.aircheck.core.domain.model.WeatherCondition
 import com.seriouschoi.aircheck.core.domain.model.WeatherResponse
 import com.seriouschoi.aircheck.core.domain.port.WeatherPort
 import com.seriouschoi.aircheck.core.kma.dto.FcstItem
 import com.seriouschoi.aircheck.core.kma.dto.KmaApiResponse
+import com.seriouschoi.aircheck.core.kma.dto.MidLandFcstItem
+import com.seriouschoi.aircheck.core.kma.dto.MidTaItem
 import com.seriouschoi.aircheck.core.kma.dto.NcstItem
 import kotlinx.serialization.json.Json
 import mu.KotlinLogging
@@ -35,13 +39,21 @@ class KmaAdapter(
     private val restTemplate: RestTemplate,
     @Value("\${kma.api.key:}") private val apiKey: String,
     @Value("\${kma.api.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") 
-    private val baseUrl: String
+    private val baseUrl: String,
+    @Value("\${kma.api.mid-url:http://apis.data.go.kr/1360000/MidFcstInfoService}") 
+    private val midBaseUrl: String
 ) : WeatherPort {
     
     companion object {
         private const val ULTRA_SRT_NCST = "getUltraSrtNcst"  // 초단기실황
         private const val ULTRA_SRT_FCST = "getUltraSrtFcst"  // 초단기예보
         private const val VILAGE_FCST = "getVilageFcst"       // 단기예보
+        private const val MID_LAND_FCST = "getMidLandFcst"    // 중기육상예보
+        private const val MID_TA = "getMidTa"                 // 중기기온예보
+        
+        // 중기예보 지역코드 (서울/경기 기준, 추후 확장)
+        private const val DEFAULT_REG_ID = "11B00000"  // 서울/인천/경기
+        private const val DEFAULT_TA_REG_ID = "11B10101"  // 서울
     }
     
     private val json = Json { 
@@ -62,12 +74,19 @@ class KmaAdapter(
             
             // 현재 시간 기준 base_date, base_time 계산
             val (baseDate, baseTime) = calculateBaseDateTime()
+            val (vilageFcstDate, vilageFcstTime) = calculateVilageFcstBaseDateTime()
             
             // 초단기실황 조회 (현재 날씨)
             val currentWeather = fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime)
             
             // 초단기예보 조회 (6시간 예보)
             val hourlyForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
+            
+            // 단기예보 조회 (3일 예보)
+            val dailyForecast = fetchDailyForecast(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
+            
+            // 중기예보 조회 (3~10일)
+            val midTermForecast = fetchMidTermForecast()
             
             if (currentWeather == null) {
                 logger.warn { "Failed to fetch current weather" }
@@ -76,7 +95,9 @@ class KmaAdapter(
             
             WeatherResponse(
                 current = currentWeather,
-                hourlyForecast = hourlyForecast
+                hourlyForecast = hourlyForecast,
+                dailyForecast = dailyForecast,
+                midTermForecast = midTermForecast
             )
         } catch (e: Exception) {
             logger.error(e) { "KMA API error: ${e.message}" }
@@ -131,13 +152,89 @@ class KmaAdapter(
     }
     
     /**
+     * 단기예보 조회 (3일)
+     */
+    private fun fetchDailyForecast(nx: Int, ny: Int, baseDate: String, baseTime: String): List<DailyForecast> {
+        val url = buildUrl(VILAGE_FCST, nx, ny, baseDate, baseTime, numOfRows = 1000)
+        
+        return try {
+            val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
+            val parsed = json.decodeFromString<KmaApiResponse<FcstItem>>(response)
+            
+            if (parsed.response.header.resultCode != "00") {
+                logger.warn { "KMA API error: ${parsed.response.header.resultMsg}" }
+                return emptyList()
+            }
+            
+            val items = parsed.response.body?.items?.item ?: return emptyList()
+            parseDailyForecast(items)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to fetch daily forecast: ${e.message}" }
+            emptyList()
+        }
+    }
+    
+    /**
+     * 중기예보 조회 (3~10일)
+     */
+    private fun fetchMidTermForecast(): List<MidTermForecast> {
+        val tmFc = calculateMidFcstTmFc()
+        
+        return try {
+            // 중기육상예보 (날씨)
+            val landUrl = "$midBaseUrl/$MID_LAND_FCST" +
+                    "?serviceKey=$apiKey" +
+                    "&pageNo=1&numOfRows=10&dataType=JSON" +
+                    "&regId=$DEFAULT_REG_ID" +
+                    "&tmFc=$tmFc"
+            
+            // 중기기온예보 (기온)
+            val taUrl = "$midBaseUrl/$MID_TA" +
+                    "?serviceKey=$apiKey" +
+                    "&pageNo=1&numOfRows=10&dataType=JSON" +
+                    "&regId=$DEFAULT_TA_REG_ID" +
+                    "&tmFc=$tmFc"
+            
+            val landResponse = restTemplate.getForObject(landUrl, String::class.java)
+            val taResponse = restTemplate.getForObject(taUrl, String::class.java)
+            
+            if (landResponse == null || taResponse == null) return emptyList()
+            
+            val landParsed = json.decodeFromString<KmaApiResponse<MidLandFcstItem>>(landResponse)
+            val taParsed = json.decodeFromString<KmaApiResponse<MidTaItem>>(taResponse)
+            
+            if (landParsed.response.header.resultCode != "00" || 
+                taParsed.response.header.resultCode != "00") {
+                return emptyList()
+            }
+            
+            val landItem = landParsed.response.body?.items?.item?.firstOrNull()
+            val taItem = taParsed.response.body?.items?.item?.firstOrNull()
+            
+            if (landItem == null || taItem == null) return emptyList()
+            
+            parseMidTermForecast(landItem, taItem)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to fetch mid-term forecast: ${e.message}" }
+            emptyList()
+        }
+    }
+    
+    /**
      * API URL 생성
      */
-    private fun buildUrl(operation: String, nx: Int, ny: Int, baseDate: String, baseTime: String): String {
+    private fun buildUrl(
+        operation: String, 
+        nx: Int, 
+        ny: Int, 
+        baseDate: String, 
+        baseTime: String,
+        numOfRows: Int = 60
+    ): String {
         return "$baseUrl/$operation" +
                 "?serviceKey=$apiKey" +
                 "&pageNo=1" +
-                "&numOfRows=60" +
+                "&numOfRows=$numOfRows" +
                 "&dataType=JSON" +
                 "&base_date=$baseDate" +
                 "&base_time=$baseTime" +
@@ -146,7 +243,7 @@ class KmaAdapter(
     }
     
     /**
-     * base_date, base_time 계산
+     * base_date, base_time 계산 (초단기)
      * 
      * 초단기실황: 정시 기준, 40분 후 생성
      * 초단기예보: 30분 기준
@@ -169,6 +266,53 @@ class KmaAdapter(
             baseTime.format(dateFormatter),
             baseTime.format(timeFormatter)
         )
+    }
+    
+    /**
+     * 단기예보 base_date, base_time 계산
+     * 
+     * 발표시각: 02, 05, 08, 11, 14, 17, 20, 23시
+     */
+    private fun calculateVilageFcstBaseDateTime(): Pair<String, String> {
+        val now = LocalDateTime.now()
+        val hour = now.hour
+        
+        // 발표 시각 목록 (10분 후 사용 가능)
+        val baseTimes = listOf(2, 5, 8, 11, 14, 17, 20, 23)
+        
+        // 현재 시간 기준 가장 최근 발표 시각 찾기
+        val baseHour = baseTimes.lastOrNull { it <= hour - 1 } ?: 23
+        
+        val baseDateTime = if (baseHour == 23 && hour < 23) {
+            now.minusDays(1).withHour(23)
+        } else {
+            now.withHour(baseHour)
+        }
+        
+        val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+        
+        return Pair(
+            baseDateTime.format(dateFormatter),
+            String.format("%02d00", baseHour)
+        )
+    }
+    
+    /**
+     * 중기예보 발표시각 (tmFc) 계산
+     * 
+     * 발표시각: 06시, 18시
+     */
+    private fun calculateMidFcstTmFc(): String {
+        val now = LocalDateTime.now()
+        val hour = now.hour
+        
+        val baseDateTime = when {
+            hour < 6 -> now.minusDays(1).withHour(18)
+            hour < 18 -> now.withHour(6)
+            else -> now.withHour(18)
+        }
+        
+        return baseDateTime.format(DateTimeFormatter.ofPattern("yyyyMMddHH00"))
     }
     
     /**
@@ -253,6 +397,116 @@ class KmaAdapter(
                 weatherCondition = weatherCondition
             )
         }.sortedBy { it.time }.take(6)
+    }
+    
+    /**
+     * 단기예보 파싱 (일별)
+     */
+    private fun parseDailyForecast(items: List<FcstItem>): List<DailyForecast> {
+        // 날짜별로 그룹핑
+        val groupedByDate = items.groupBy { it.fcstDate }
+        val dayOfWeekFormatter = DateTimeFormatter.ofPattern("E", java.util.Locale.KOREAN)
+        val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+        
+        return groupedByDate.map { (date, dateItems) ->
+            var minTemp = Double.MAX_VALUE
+            var maxTemp = Double.MIN_VALUE
+            var amPop = 0
+            var pmPop = 0
+            var amSky = 1
+            var pmSky = 1
+            var amPty = 0
+            var pmPty = 0
+            
+            dateItems.forEach { item ->
+                val hour = item.fcstTime.substring(0, 2).toIntOrNull() ?: 0
+                val isAm = hour < 12
+                
+                when (item.category) {
+                    "TMN" -> minTemp = item.fcstValue.toDoubleOrNull() ?: minTemp
+                    "TMX" -> maxTemp = item.fcstValue.toDoubleOrNull() ?: maxTemp
+                    "TMP" -> {
+                        val temp = item.fcstValue.toDoubleOrNull() ?: 0.0
+                        if (temp < minTemp) minTemp = temp
+                        if (temp > maxTemp) maxTemp = temp
+                    }
+                    "POP" -> {
+                        val pop = item.fcstValue.toIntOrNull() ?: 0
+                        if (isAm) amPop = maxOf(amPop, pop)
+                        else pmPop = maxOf(pmPop, pop)
+                    }
+                    "SKY" -> {
+                        val sky = item.fcstValue.toIntOrNull() ?: 1
+                        if (isAm) amSky = sky
+                        else pmSky = sky
+                    }
+                    "PTY" -> {
+                        val pty = item.fcstValue.toIntOrNull() ?: 0
+                        if (isAm) amPty = pty
+                        else pmPty = pty
+                    }
+                }
+            }
+            
+            val localDate = java.time.LocalDate.parse(date, dateFormatter)
+            
+            DailyForecast(
+                date = "${localDate.year}-${String.format("%02d", localDate.monthValue)}-${String.format("%02d", localDate.dayOfMonth)}",
+                dayOfWeek = localDate.format(dayOfWeekFormatter),
+                minTemp = if (minTemp == Double.MAX_VALUE) 0.0 else minTemp,
+                maxTemp = if (maxTemp == Double.MIN_VALUE) 0.0 else maxTemp,
+                amPrecipProb = amPop,
+                pmPrecipProb = pmPop,
+                amWeatherCondition = convertToWeatherCondition(amPty, amSky),
+                pmWeatherCondition = convertToWeatherCondition(pmPty, pmSky)
+            )
+        }.sortedBy { it.date }.take(3)
+    }
+    
+    /**
+     * 중기예보 파싱
+     */
+    private fun parseMidTermForecast(landItem: MidLandFcstItem, taItem: MidTaItem): List<MidTermForecast> {
+        val today = java.time.LocalDate.now()
+        val dayOfWeekFormatter = DateTimeFormatter.ofPattern("E", java.util.Locale.KOREAN)
+        
+        return (3..10).mapNotNull { dayOffset ->
+            val date = today.plusDays(dayOffset.toLong())
+            
+            val (amPop, pmPop, wfAm, wfPm) = when (dayOffset) {
+                3 -> listOf(landItem.rnSt3Am, landItem.rnSt3Pm, landItem.wf3Am, landItem.wf3Pm)
+                4 -> listOf(landItem.rnSt4Am, landItem.rnSt4Pm, landItem.wf4Am, landItem.wf4Pm)
+                5 -> listOf(landItem.rnSt5Am, landItem.rnSt5Pm, landItem.wf5Am, landItem.wf5Pm)
+                6 -> listOf(landItem.rnSt6Am, landItem.rnSt6Pm, landItem.wf6Am, landItem.wf6Pm)
+                7 -> listOf(landItem.rnSt7Am, landItem.rnSt7Pm, landItem.wf7Am, landItem.wf7Pm)
+                8 -> listOf(landItem.rnSt8, landItem.rnSt8, landItem.wf8, landItem.wf8)
+                9 -> listOf(landItem.rnSt9, landItem.rnSt9, landItem.wf9, landItem.wf9)
+                10 -> listOf(landItem.rnSt10, landItem.rnSt10, landItem.wf10, landItem.wf10)
+                else -> return@mapNotNull null
+            }
+            
+            val (minTemp, maxTemp) = when (dayOffset) {
+                3 -> Pair(taItem.taMin3, taItem.taMax3)
+                4 -> Pair(taItem.taMin4, taItem.taMax4)
+                5 -> Pair(taItem.taMin5, taItem.taMax5)
+                6 -> Pair(taItem.taMin6, taItem.taMax6)
+                7 -> Pair(taItem.taMin7, taItem.taMax7)
+                8 -> Pair(taItem.taMin8, taItem.taMax8)
+                9 -> Pair(taItem.taMin9, taItem.taMax9)
+                10 -> Pair(taItem.taMin10, taItem.taMax10)
+                else -> return@mapNotNull null
+            }
+            
+            MidTermForecast(
+                date = "${date.year}-${String.format("%02d", date.monthValue)}-${String.format("%02d", date.dayOfMonth)}",
+                dayOfWeek = date.format(dayOfWeekFormatter),
+                minTemp = minTemp ?: 0,
+                maxTemp = maxTemp ?: 0,
+                amPrecipProb = (amPop as? Int) ?: 0,
+                pmPrecipProb = (pmPop as? Int) ?: 0,
+                weatherDescription = (wfAm as? String) ?: "맑음"
+            )
+        }
     }
     
     /**

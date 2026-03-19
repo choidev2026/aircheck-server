@@ -10,6 +10,7 @@ dependencies {
     
     // Spring
     implementation("org.springframework:spring-context:6.2.4")
+    implementation("org.springframework.boot:spring-boot-autoconfigure")
     
     // Kotlin
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":core:service"))
     implementation(project(":core:airkorea-adapter"))
     implementation(project(":core:openmeteo-adapter"))
+    implementation(project(":core:kma-adapter"))
     implementation(project(":core:persistence-adapter"))
     implementation(project(":core:fcm-adapter"))
     

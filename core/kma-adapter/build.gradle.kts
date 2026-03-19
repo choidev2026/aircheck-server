@@ -1,0 +1,19 @@
+plugins {
+    kotlin("jvm")
+    kotlin("plugin.spring")
+    kotlin("plugin.serialization")
+}
+
+dependencies {
+    implementation(project(":core:domain"))
+    
+    // Spring
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    
+    // Kotlin Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    
+    // Logging
+    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+}

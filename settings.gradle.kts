@@ -1,10 +1,16 @@
 rootProject.name = "aircheck-server"
 
-include(":domain")
-include(":application")
-include(":adapter-in")
-include(":adapter-out")
-include(":adapter-out-weather")
-include(":adapter-out-airquality")
-include(":adapter-out-persistence")
+// Core modules
+include(":core:domain")
+include(":core:service")
+include(":core:airkorea")
+include(":core:openmeteo")
+include(":core:persistence")
+include(":core:fcm")
+
+// Feature modules
+include(":feature:weather")
+include(":feature:admin")
+
+// App (composition root)
 include(":app")

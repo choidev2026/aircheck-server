@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     implementation(project(":domain"))
+    implementation(project(":application"))
     
     // Spring
     implementation("org.springframework:spring-context:6.2.4")

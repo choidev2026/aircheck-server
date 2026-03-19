@@ -64,10 +64,15 @@ private data class StationInfo(
 
 @Component
 class AirKoreaAdapter(
-    @Value("\${airkorea.api-key}") private val apiKey: String
+    @Value("\${airkorea.api-key}") private val apiKey: String,
+    private val apiUsagePort: com.seriouschoi.aircheck.application.port.out.ApiUsagePort?
 ) : AirQualityPort {
     
     private val log = LoggerFactory.getLogger(javaClass)
+    
+    companion object {
+        private const val API_TYPE = "AIR_KOREA"
+    }
     
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -200,12 +205,19 @@ class AirKoreaAdapter(
                 "&serviceKey=${URLEncoder.encode(apiKey, "UTF-8")}" +
                 "&ver=1.0"
         
+        val startTime = System.currentTimeMillis()
+        
         return try {
             val response = get(url)
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
+            
+            val responseTime = System.currentTimeMillis() - startTime
+            apiUsagePort?.recordSuccess(API_TYPE, responseTime)
+            
             parsed.response?.body?.items?.firstOrNull()
         } catch (e: Exception) {
             log.error("측정소 {} 조회 실패: {}", stationName, e.message)
+            apiUsagePort?.recordFailure(API_TYPE, e.message)
             null
         }
     }

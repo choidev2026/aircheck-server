@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     implementation(project(":domain"))
+    implementation(project(":application"))
     
     // Spring Data JPA
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

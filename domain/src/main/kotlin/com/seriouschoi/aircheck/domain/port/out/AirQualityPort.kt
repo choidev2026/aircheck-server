@@ -9,5 +9,4 @@ import com.seriouschoi.aircheck.domain.model.AirQualityResponse
  */
 interface AirQualityPort {
     fun getAirQuality(lat: Double, lng: Double): AirQualityResponse?
-    fun loadStationCoordinates()
 }

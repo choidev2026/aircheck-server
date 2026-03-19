@@ -6,6 +6,7 @@ plugins {
 dependencies {
     implementation(project(":domain"))
     implementation(project(":application"))
+    implementation(project(":adapter-out-airquality"))
     
     // Spring Web (Controller)
     implementation("org.springframework.boot:spring-boot-starter-web")

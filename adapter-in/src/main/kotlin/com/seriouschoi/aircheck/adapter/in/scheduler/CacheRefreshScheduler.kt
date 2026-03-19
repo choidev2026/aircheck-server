@@ -1,6 +1,6 @@
 package com.seriouschoi.aircheck.adapter.`in`.scheduler
 
-import com.seriouschoi.aircheck.domain.port.out.AirQualityPort
+import com.seriouschoi.aircheck.adapter.out.api.StationCacheService
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.cache.CacheManager
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class CacheRefreshScheduler(
-    private val airQualityPort: AirQualityPort,
+    private val stationCacheService: StationCacheService,
     private val cacheManager: CacheManager
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -17,21 +17,23 @@ class CacheRefreshScheduler(
     @PostConstruct
     fun init() {
         log.info("측정소 정보 로딩 시작...")
-        airQualityPort.loadStationCoordinates()
-        log.info("측정소 정보 로딩 완료")
+        val stations = stationCacheService.loadStations()
+        log.info("측정소 정보 로딩 완료: ${stations.size}개")
     }
 
     @Scheduled(fixedRate = 600_000) // 10분
     fun logCacheStats() {
         val airCache = cacheManager.getCache("airquality")
         val weatherCache = cacheManager.getCache("weather")
-        log.debug("캐시 상태 - airquality: ${airCache != null}, weather: ${weatherCache != null}")
+        val stationsCache = cacheManager.getCache("stations")
+        log.debug("캐시 상태 - airquality: ${airCache != null}, weather: ${weatherCache != null}, stations: ${stationsCache != null}")
     }
 
-    @Scheduled(fixedRate = 21_600_000) // 6시간
+    @Scheduled(cron = "0 0 6 * * *") // 매일 새벽 6시
     fun refreshStationList() {
-        log.info("측정소 목록 갱신 중...")
-        airQualityPort.loadStationCoordinates()
-        log.info("측정소 목록 갱신 완료")
+        log.info("측정소 목록 캐시 갱신 중...")
+        cacheManager.getCache("stations")?.clear()
+        val stations = stationCacheService.loadStations()
+        log.info("측정소 목록 갱신 완료: ${stations.size}개")
     }
 }

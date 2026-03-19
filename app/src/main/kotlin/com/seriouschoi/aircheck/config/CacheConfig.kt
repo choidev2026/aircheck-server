@@ -12,12 +12,22 @@ class CacheConfig {
 
     @Bean
     fun cacheManager(): CacheManager {
-        val cacheManager = CaffeineCacheManager()
-        cacheManager.setCaffeine(
-            Caffeine.newBuilder()
-                .expireAfterWrite(60, TimeUnit.MINUTES)  // 1시간 캐시 (API 한도 절약)
-                .maximumSize(1000)
-        )
-        return cacheManager
+        return object : CaffeineCacheManager() {
+            override fun createNativeCaffeineCache(name: String): com.github.benmanes.caffeine.cache.Cache<Any, Any> {
+                return when (name) {
+                    // 측정소 정보: 24시간 (거의 안 바뀜)
+                    "stations" -> Caffeine.newBuilder()
+                        .expireAfterWrite(24, TimeUnit.HOURS)
+                        .maximumSize(10)
+                        .build()
+                    
+                    // 날씨/대기질: 1시간
+                    else -> Caffeine.newBuilder()
+                        .expireAfterWrite(60, TimeUnit.MINUTES)
+                        .maximumSize(1000)
+                        .build()
+                }
+            }
+        }
     }
 }

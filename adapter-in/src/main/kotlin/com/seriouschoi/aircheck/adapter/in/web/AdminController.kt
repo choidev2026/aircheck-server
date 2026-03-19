@@ -2,21 +2,34 @@ package com.seriouschoi.aircheck.adapter.`in`.web
 
 import com.seriouschoi.aircheck.application.port.out.ApiUsagePort
 import com.seriouschoi.aircheck.application.port.out.ApiUsageStats
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.format.annotation.DateTimeFormat
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDate
 
 @RestController
 @RequestMapping("/admin")
 class AdminController(
-    private val apiUsagePort: ApiUsagePort
+    private val apiUsagePort: ApiUsagePort,
+    @Value("\${admin.api-key:342en3744}") private val adminApiKey: String
 ) {
+    
+    private fun validateApiKey(key: String?) {
+        if (key != adminApiKey) {
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid API Key")
+        }
+    }
     
     /**
      * 오늘 API 사용량 조회
      */
     @GetMapping("/api-usage/today")
-    fun getTodayUsage(): ApiUsageResponse {
+    fun getTodayUsage(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): ApiUsageResponse {
+        validateApiKey(apiKey)
         val stats = apiUsagePort.getTodayStats()
         return ApiUsageResponse(
             date = LocalDate.now(),
@@ -30,11 +43,13 @@ class AdminController(
      */
     @GetMapping("/api-usage")
     fun getUsage(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) 
         startDate: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) 
         endDate: LocalDate
     ): List<ApiUsageStats> {
+        validateApiKey(apiKey)
         return apiUsagePort.getStats(startDate, endDate)
     }
     
@@ -42,7 +57,10 @@ class AdminController(
      * API 잔여 호출 수 조회
      */
     @GetMapping("/api-usage/remaining")
-    fun getRemainingCalls(): Map<String, RemainingCalls> {
+    fun getRemainingCalls(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): Map<String, RemainingCalls> {
+        validateApiKey(apiKey)
         val stats = apiUsagePort.getTodayStats()
         
         return API_LIMITS.mapValues { (apiType, limit) ->
@@ -61,17 +79,23 @@ class AdminController(
      */
     @GetMapping("/api-usage/hourly")
     fun getHourlyStats(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         date: LocalDate?
-    ) = apiUsagePort.getHourlyStats(date ?: LocalDate.now())
+    ): List<com.seriouschoi.aircheck.application.port.out.HourlyStats> {
+        validateApiKey(apiKey)
+        return apiUsagePort.getHourlyStats(date ?: LocalDate.now())
+    }
     
     /**
      * 수동 로그 정리
      */
     @DeleteMapping("/api-usage/cleanup")
     fun cleanupLogs(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
         @RequestParam(defaultValue = "30") retentionDays: Int
     ): Map<String, Any> {
+        validateApiKey(apiKey)
         val deleted = apiUsagePort.cleanupOldLogs(retentionDays)
         return mapOf(
             "deletedCount" to deleted,

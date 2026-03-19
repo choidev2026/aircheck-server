@@ -45,7 +45,9 @@ data class OpenMeteoHourly(
 // ── Adapter 구현 ───────────────────────────────────────────────────────────
 
 @Component
-class OpenMeteoAdapter : WeatherPort {
+class OpenMeteoAdapter(
+    private val apiUsagePort: com.seriouschoi.aircheck.application.port.out.ApiUsagePort?
+) : WeatherPort {
     
     private val log = LoggerFactory.getLogger(javaClass)
     
@@ -55,6 +57,10 @@ class OpenMeteoAdapter : WeatherPort {
         .build()
     
     private val json = Json { ignoreUnknownKeys = true }
+    
+    companion object {
+        private const val API_TYPE = "OPEN_METEO"
+    }
 
     override fun getWeather(lat: Double, lng: Double): WeatherResponse? {
         val url = "https://api.open-meteo.com/v1/forecast" +
@@ -64,12 +70,18 @@ class OpenMeteoAdapter : WeatherPort {
                 "&forecast_hours=48" +
                 "&timezone=auto"
         
+        val startTime = System.currentTimeMillis()
+        
         return try {
             val response = get(url)
             val parsed = json.decodeFromString<OpenMeteoResponse>(response)
             
             val current = parsed.current ?: return null
             val hourly = parsed.hourly ?: return null
+            
+            // API 호출 성공 기록
+            val responseTime = System.currentTimeMillis() - startTime
+            apiUsagePort?.recordSuccess(API_TYPE, responseTime)
             
             WeatherResponse(
                 current = CurrentWeather(
@@ -98,6 +110,7 @@ class OpenMeteoAdapter : WeatherPort {
             )
         } catch (e: Exception) {
             log.error("Open-Meteo API 호출 실패: ${e.message}")
+            apiUsagePort?.recordFailure(API_TYPE, e.message)
             null
         }
     }

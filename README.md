@@ -124,12 +124,56 @@
 | POST | `/api/v1/push/unsubscribe` | 구독 해제 |
 | POST | `/api/v1/push/enabled` | 알림 on/off |
 
+### 관리자 API 🔐
+
+> **인증 필요**: `X-Admin-Key` 헤더
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| GET | `/admin/api-usage/today` | 오늘 API 사용량 |
+| GET | `/admin/api-usage/remaining` | 잔여 호출 수 |
+| GET | `/admin/api-usage/hourly?date=` | 시간대별 통계 |
+| GET | `/admin/api-usage?startDate=&endDate=` | 기간별 통계 |
+| DELETE | `/admin/api-usage/cleanup` | 로그 수동 정리 |
+
+**사용 예시:**
+```bash
+curl -H "X-Admin-Key: YOUR_KEY" \
+  https://api.todaygonggi.com/admin/api-usage/today
+```
+
+**응답 예시:**
+```json
+{
+  "date": "2026-03-19",
+  "stats": [
+    {
+      "apiType": "OPEN_METEO",
+      "callCount": 150,
+      "successCount": 148,
+      "failCount": 2,
+      "avgResponseTimeMs": 234,
+      "successRate": 98.67
+    }
+  ],
+  "limits": {
+    "OPEN_METEO": 10000,
+    "AIR_KOREA": 500
+  }
+}
+```
+
+**자동 로그 정리:**
+- 매일 새벽 3시 실행
+- 30일 지난 로그 자동 삭제
+
 ## 환경 변수
 
 | 변수 | 설명 | 필수 |
 |------|------|------|
 | `AIRKOREA_API_KEY` | 에어코리아 API 키 | ✅ |
 | `FIREBASE_CREDENTIALS_JSON` | Firebase 서비스 계정 JSON | ✅ (푸시용) |
+| `ADMIN_API_KEY` | 관리자 API 인증 키 | ✅ |
 | `DB_HOST` | MariaDB 호스트 | ✅ |
 | `DB_PORT` | MariaDB 포트 (기본: 3306) | |
 | `DB_NAME` | 데이터베이스 이름 | ✅ |

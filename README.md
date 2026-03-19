@@ -195,4 +195,11 @@ docker-compose up -d
 java -jar app/build/libs/app-0.0.1-SNAPSHOT.jar
 ```
 
+## Contributing
+
+### PR 머지 정책
+- **GitHub Actions 빌드 성공 확인 후 머지**
+- CI 실패 시 머지 금지
+- `main` 브랜치 직접 푸시 지양
+
 

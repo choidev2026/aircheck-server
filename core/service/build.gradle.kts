@@ -12,4 +12,9 @@ dependencies {
     
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.16")
+    
+    // Test
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("io.mockk:mockk:1.13.16")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }

@@ -56,6 +56,29 @@ class AdminController(
         }
     }
     
+    /**
+     * 시간대별 통계 조회
+     */
+    @GetMapping("/api-usage/hourly")
+    fun getHourlyStats(
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+        date: LocalDate?
+    ) = apiUsagePort.getHourlyStats(date ?: LocalDate.now())
+    
+    /**
+     * 수동 로그 정리
+     */
+    @DeleteMapping("/api-usage/cleanup")
+    fun cleanupLogs(
+        @RequestParam(defaultValue = "30") retentionDays: Int
+    ): Map<String, Any> {
+        val deleted = apiUsagePort.cleanupOldLogs(retentionDays)
+        return mapOf(
+            "deletedCount" to deleted,
+            "retentionDays" to retentionDays
+        )
+    }
+    
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,

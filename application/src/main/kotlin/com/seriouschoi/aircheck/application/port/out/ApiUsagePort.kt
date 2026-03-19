@@ -1,6 +1,7 @@
 package com.seriouschoi.aircheck.application.port.out
 
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * API 사용량 추적 포트
@@ -15,7 +16,7 @@ interface ApiUsagePort {
     /**
      * 실패한 API 호출 기록
      */
-    fun recordFailure(apiType: String)
+    fun recordFailure(apiType: String, errorMessage: String? = null)
     
     /**
      * 오늘 호출 수 조회
@@ -31,6 +32,16 @@ interface ApiUsagePort {
      * 기간별 통계 조회
      */
     fun getStats(startDate: LocalDate, endDate: LocalDate): List<ApiUsageStats>
+    
+    /**
+     * 시간대별 통계
+     */
+    fun getHourlyStats(date: LocalDate): List<HourlyStats>
+    
+    /**
+     * 오래된 로그 삭제
+     */
+    fun cleanupOldLogs(retentionDays: Int): Int
 }
 
 /**
@@ -47,3 +58,13 @@ data class ApiUsageStats(
     val successRate: Double
         get() = if (callCount > 0) successCount.toDouble() / callCount * 100 else 0.0
 }
+
+/**
+ * 시간대별 통계
+ */
+data class HourlyStats(
+    val hour: Int,
+    val callCount: Long,
+    val successCount: Long,
+    val avgResponseTimeMs: Double
+)

@@ -110,7 +110,7 @@ class OpenMeteoAdapter(
             )
         } catch (e: Exception) {
             log.error("Open-Meteo API 호출 실패: ${e.message}")
-            apiUsagePort?.recordFailure(API_TYPE)
+            apiUsagePort?.recordFailure(API_TYPE, e.message)
             null
         }
     }

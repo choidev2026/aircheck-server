@@ -8,10 +8,10 @@ dependencies {
     // Core modules
     implementation(project(":core:domain"))
     implementation(project(":core:service"))
-    implementation(project(":core:airkorea"))
-    implementation(project(":core:openmeteo"))
-    implementation(project(":core:persistence"))
-    implementation(project(":core:fcm"))
+    implementation(project(":core:airkorea-adapter"))
+    implementation(project(":core:openmeteo-adapter"))
+    implementation(project(":core:persistence-adapter"))
+    implementation(project(":core:fcm-adapter"))
     
     // Feature modules
     implementation(project(":feature:weather"))

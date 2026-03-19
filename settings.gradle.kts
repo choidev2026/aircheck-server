@@ -3,10 +3,10 @@ rootProject.name = "aircheck-server"
 // Core modules
 include(":core:domain")
 include(":core:service")
-include(":core:airkorea")
-include(":core:openmeteo")
-include(":core:persistence")
-include(":core:fcm")
+include(":core:airkorea-adapter")
+include(":core:openmeteo-adapter")
+include(":core:persistence-adapter")
+include(":core:fcm-adapter")
 
 // Feature modules
 include(":feature:weather")

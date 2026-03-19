@@ -28,9 +28,23 @@ data class AirKoreaItem(
     val stationName: String = "",
     val sidoName: String = "",
     val dataTime: String = "",
+    // 미세먼지
     val pm10Value: String = "-",
+    val pm10Grade: String = "-",
     val pm25Value: String = "-",
-    val khaiValue: String = "-"
+    val pm25Grade: String = "-",
+    // 통합지수
+    val khaiValue: String = "-",
+    val khaiGrade: String = "-",
+    // 가스류
+    val so2Value: String = "-",    // 아황산가스 (ppm)
+    val so2Grade: String = "-",
+    val coValue: String = "-",     // 일산화탄소 (ppm)
+    val coGrade: String = "-",
+    val o3Value: String = "-",     // 오존 (ppm)
+    val o3Grade: String = "-",
+    val no2Value: String = "-",    // 이산화질소 (ppm)
+    val no2Grade: String = "-"
 )
 
 // ── Adapter 구현 ───────────────────────────────────────────────────────────
@@ -135,7 +149,15 @@ class AirKoreaAdapter(
             pm10 = pm10,
             pm10Station = pm10Station,
             pm25 = pm25,
-            pm25Station = pm25Station
+            pm25Station = pm25Station,
+            // 통합지수 (메인 측정소)
+            khaiValue = mainData?.khaiValue?.toIntOrNull(),
+            khaiGrade = mainData?.khaiGrade?.toIntOrNull(),
+            // 가스류 (메인 측정소)
+            so2 = mainData?.so2Value?.toDoubleOrNull(),
+            co = mainData?.coValue?.toDoubleOrNull(),
+            o3 = mainData?.o3Value?.toDoubleOrNull(),
+            no2 = mainData?.no2Value?.toDoubleOrNull()
         )
     }
     

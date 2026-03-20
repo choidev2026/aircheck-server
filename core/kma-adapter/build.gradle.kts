@@ -6,18 +6,18 @@ plugins {
 
 dependencies {
     implementation(project(":core:domain"))
-    implementation(project(":core:service"))
     
     // Spring
-    implementation("org.springframework:spring-context:6.2.4")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     
-    // Kotlin
+    // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     
-    // HTTP Client
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    
     // Logging
-    implementation("org.slf4j:slf4j-api:2.0.16")
+    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    
+    // Test
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
 }

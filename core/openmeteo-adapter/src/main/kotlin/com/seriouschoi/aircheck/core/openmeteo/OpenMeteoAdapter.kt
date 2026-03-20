@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 
@@ -44,7 +45,13 @@ data class OpenMeteoHourly(
 
 // ── Adapter 구현 ───────────────────────────────────────────────────────────
 
+/**
+ * Open-Meteo API Adapter
+ * 
+ * 활성화: weather.provider=openmeteo (기본값)
+ */
 @Component
+@ConditionalOnProperty(name = ["weather.provider"], havingValue = "openmeteo", matchIfMissing = true)
 class OpenMeteoAdapter(
     private val apiUsagePort: com.seriouschoi.aircheck.core.service.port.ApiUsagePort?
 ) : WeatherPort {

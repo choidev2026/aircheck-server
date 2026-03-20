@@ -13,7 +13,7 @@ import java.time.LocalDate
 @RequestMapping("/admin")
 class AdminController(
     private val apiUsagePort: ApiUsagePort,
-    @Value("\${admin.api-key:342en3744}") private val adminApiKey: String
+    @Value("\${admin.api-key}") private val adminApiKey: String
 ) {
     
     private fun validateApiKey(key: String?) {

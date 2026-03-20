@@ -124,6 +124,24 @@
 | POST | `/api/v1/push/unsubscribe` | 구독 해제 |
 | POST | `/api/v1/push/enabled` | 알림 on/off |
 
+### 앱 버전 체크
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| GET | `/api/v1/app/version?platform={}&versionCode={}` | 앱 버전 확인 |
+
+**응답:**
+```json
+{
+  "minVersionCode": 1,
+  "latestVersionCode": 2,
+  "forceUpdate": false,
+  "updateAvailable": true,
+  "updateUrl": "market://details?id=seriouschoi.aircheck",
+  "message": null
+}
+```
+
 ### 관리자 API 🔐
 
 > **인증 필요**: `X-Admin-Key` 헤더
@@ -135,6 +153,22 @@
 | GET | `/admin/api-usage/hourly?date=` | 시간대별 통계 |
 | GET | `/admin/api-usage?startDate=&endDate=` | 기간별 통계 |
 | DELETE | `/admin/api-usage/cleanup` | 로그 수동 정리 |
+| POST | `/admin/app-version` | 앱 버전 설정 |
+
+**앱 버전 설정:**
+```bash
+curl -X POST http://서버/admin/app-version \
+  -H "X-Admin-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "platform": "android",
+    "minVersionCode": 1,
+    "latestVersionCode": 2,
+    "forceUpdate": false,
+    "updateUrl": "market://details?id=seriouschoi.aircheck",
+    "message": "새 버전이 출시되었습니다."
+  }'
+```
 
 **사용 예시:**
 ```bash

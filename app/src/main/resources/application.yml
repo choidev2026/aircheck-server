@@ -35,10 +35,10 @@ weather:
 airkorea:
   api-key: ${AIRKOREA_API_KEY:your-api-key-here}
 
-# 기상청 API (공공데이터포털)
+# 기상청 API (공공데이터포털 - 에어코리아와 동일 키)
 kma:
   api:
-    key: ${KMA_API_KEY:${AIRKOREA_API_KEY:}}  # 에어코리아 키와 동일하게 사용 가능
+    key: ${AIRKOREA_API_KEY:}
 
 # Firebase (FCM)
 firebase:

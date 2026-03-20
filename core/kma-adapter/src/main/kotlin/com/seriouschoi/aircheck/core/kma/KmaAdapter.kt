@@ -394,8 +394,13 @@ class KmaAdapter(
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
             
+            val dateTime = LocalDateTime.parse(
+                "${fcstDate}${fcstTime}",
+                DateTimeFormatter.ofPattern("yyyyMMddHHmm")
+            )
+            
             HourlyForecast(
-                time = "${fcstDate}T${fcstTime.substring(0, 2)}:00",
+                time = dateTime,
                 hour = hour,
                 temperature = temperature,
                 feelsLike = temperature, // 예보에서는 체감온도 별도 계산 필요
@@ -439,8 +444,13 @@ class KmaAdapter(
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
             
+            val dateTime = LocalDateTime.parse(
+                "${fcstDate}${fcstTime}",
+                DateTimeFormatter.ofPattern("yyyyMMddHHmm")
+            )
+            
             HourlyForecast(
-                time = "${fcstDate}T${fcstTime.substring(0, 2)}:00",
+                time = dateTime,
                 hour = hour,
                 temperature = temperature,
                 feelsLike = temperature,

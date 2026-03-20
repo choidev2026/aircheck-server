@@ -13,6 +13,8 @@ import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 // ── Open-Meteo API 응답 모델 ───────────────────────────────────────────────
@@ -101,9 +103,10 @@ class OpenMeteoAdapter(
                     isDay = current.isDay == 1
                 ),
                 hourlyForecast = hourly.time.mapIndexed { index, time ->
+                    val dateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                     HourlyForecast(
-                        time = time,
-                        hour = time.substringAfter("T").substringBefore(":").toIntOrNull() ?: 0,
+                        time = dateTime,
+                        hour = dateTime.hour,
                         temperature = hourly.temperature.getOrElse(index) { 0.0 },
                         feelsLike = hourly.feelsLike.getOrElse(index) { 0.0 },
                         precipitationProbability = hourly.precipitationProbability.getOrElse(index) { 0 },

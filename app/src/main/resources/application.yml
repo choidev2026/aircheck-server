@@ -27,9 +27,18 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=10m
 
+# 날씨 API 설정
+weather:
+  provider: ${WEATHER_PROVIDER:openmeteo}  # openmeteo 또는 kma
+
 # 에어코리아 API 키
 airkorea:
   api-key: ${AIRKOREA_API_KEY:your-api-key-here}
+
+# 기상청 API (공공데이터포털)
+kma:
+  api:
+    key: ${KMA_API_KEY:${AIRKOREA_API_KEY:}}  # 에어코리아 키와 동일하게 사용 가능
 
 # Firebase (FCM)
 firebase:

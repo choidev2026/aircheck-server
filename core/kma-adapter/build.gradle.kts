@@ -10,10 +10,14 @@ dependencies {
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("org.springframework.boot:spring-boot-autoconfigure")
     
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+    
+    // Test
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
 }

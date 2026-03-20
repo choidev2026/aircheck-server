@@ -79,11 +79,16 @@ class KmaAdapter(
             // 초단기실황 조회 (현재 날씨)
             val currentWeather = fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime)
             
-            // 초단기예보 조회 (6시간 예보)
-            val hourlyForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
+            // 초단기예보 조회 (6시간 예보 - 더 정확)
+            val ultraShortForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
             
             // 단기예보 조회 (3일 예보)
-            val dailyForecast = fetchDailyForecast(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
+            val vilageFcstItems = fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
+            val dailyForecast = parseDailyForecast(vilageFcstItems)
+            
+            // 48시간 시간별 예보 조합 (초단기 + 단기)
+            val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
+            val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
             
             // 중기예보 조회 (3~10일)
             val midTermForecast = fetchMidTermForecast()
@@ -152,9 +157,9 @@ class KmaAdapter(
     }
     
     /**
-     * 단기예보 조회 (3일)
+     * 단기예보 원본 데이터 조회 (3일)
      */
-    private fun fetchDailyForecast(nx: Int, ny: Int, baseDate: String, baseTime: String): List<DailyForecast> {
+    private fun fetchVilageFcstItems(nx: Int, ny: Int, baseDate: String, baseTime: String): List<FcstItem> {
         val url = buildUrl(VILAGE_FCST, nx, ny, baseDate, baseTime, numOfRows = 1000)
         
         return try {
@@ -166,10 +171,9 @@ class KmaAdapter(
                 return emptyList()
             }
             
-            val items = parsed.response.body?.items?.item ?: return emptyList()
-            parseDailyForecast(items)
+            parsed.response.body?.items?.item ?: emptyList()
         } catch (e: Exception) {
-            logger.error(e) { "Failed to fetch daily forecast: ${e.message}" }
+            logger.error(e) { "Failed to fetch vilage forecast: ${e.message}" }
             emptyList()
         }
     }
@@ -397,6 +401,72 @@ class KmaAdapter(
                 weatherCondition = weatherCondition
             )
         }.sortedBy { it.time }.take(6)
+    }
+    
+    /**
+     * 단기예보에서 48시간 시간별 예보 파싱
+     */
+    private fun parseExtendedHourlyForecast(items: List<FcstItem>): List<HourlyForecast> {
+        if (items.isEmpty()) return emptyList()
+        
+        // 시간별로 그룹핑
+        val groupedByTime = items.groupBy { "${it.fcstDate}_${it.fcstTime}" }
+        
+        return groupedByTime.map { (timeKey, timeItems) ->
+            val fcstDate = timeKey.split("_")[0]
+            val fcstTime = timeKey.split("_")[1]
+            val hour = fcstTime.substring(0, 2).toInt()
+            
+            var temperature = 0.0
+            var sky = 1
+            var pty = 0
+            var pop = 0
+            var sno = 0.0
+            
+            timeItems.forEach { item ->
+                when (item.category) {
+                    "TMP" -> temperature = item.fcstValue.toDoubleOrNull() ?: 0.0
+                    "SKY" -> sky = item.fcstValue.toIntOrNull() ?: 1
+                    "PTY" -> pty = item.fcstValue.toIntOrNull() ?: 0
+                    "POP" -> pop = item.fcstValue.toIntOrNull() ?: 0
+                    "SNO" -> sno = item.fcstValue.toDoubleOrNull() ?: 0.0
+                }
+            }
+            
+            val weatherCondition = convertToWeatherCondition(pty, sky)
+            
+            HourlyForecast(
+                time = "${fcstDate}T${fcstTime.substring(0, 2)}:00",
+                hour = hour,
+                temperature = temperature,
+                feelsLike = temperature,
+                precipitationProbability = pop,
+                snowfall = sno,
+                weatherCode = pty * 10 + sky,
+                weatherCondition = weatherCondition
+            )
+        }.sortedBy { it.time }.take(48)
+    }
+    
+    /**
+     * 초단기예보와 단기예보 시간별 데이터 결합
+     * - 초단기예보: 6시간 (더 정확)
+     * - 단기예보: 7~48시간
+     */
+    private fun combineHourlyForecasts(
+        ultraShort: List<HourlyForecast>,
+        extended: List<HourlyForecast>
+    ): List<HourlyForecast> {
+        if (ultraShort.isEmpty()) return extended.take(48)
+        if (extended.isEmpty()) return ultraShort
+        
+        // 초단기예보의 마지막 시간
+        val ultraShortTimes = ultraShort.map { it.time }.toSet()
+        
+        // 중복되지 않는 단기예보만 추가
+        val additionalHours = extended.filter { it.time !in ultraShortTimes }
+        
+        return (ultraShort + additionalHours).sortedBy { it.time }.take(48)
     }
     
     /**

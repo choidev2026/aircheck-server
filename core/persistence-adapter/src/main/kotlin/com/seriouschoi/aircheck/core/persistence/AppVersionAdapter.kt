@@ -30,8 +30,9 @@ class AppVersionAdapter(
             AppVersionEntity(
                 id = existing.id,
                 platform = platformEnum,
-                minVersion = appVersion.minVersion,
-                latestVersion = appVersion.latestVersion,
+                minVersionCode = appVersion.minVersionCode,
+                latestVersionCode = appVersion.latestVersionCode,
+                latestVersionName = appVersion.latestVersionName,
                 forceUpdate = appVersion.forceUpdate,
                 updateUrl = appVersion.updateUrl,
                 message = appVersion.message,
@@ -40,8 +41,9 @@ class AppVersionAdapter(
         } else {
             AppVersionEntity(
                 platform = platformEnum,
-                minVersion = appVersion.minVersion,
-                latestVersion = appVersion.latestVersion,
+                minVersionCode = appVersion.minVersionCode,
+                latestVersionCode = appVersion.latestVersionCode,
+                latestVersionName = appVersion.latestVersionName,
                 forceUpdate = appVersion.forceUpdate,
                 updateUrl = appVersion.updateUrl,
                 message = appVersion.message
@@ -53,8 +55,9 @@ class AppVersionAdapter(
     
     private fun AppVersionEntity.toModel() = AppVersion(
         platform = platform.name,
-        minVersion = minVersion,
-        latestVersion = latestVersion,
+        minVersionCode = minVersionCode,
+        latestVersionCode = latestVersionCode,
+        latestVersionName = latestVersionName,
         forceUpdate = forceUpdate,
         updateUrl = updateUrl,
         message = message

@@ -9,16 +9,17 @@ class AppVersionService(
     private val appVersionPort: AppVersionPort
 ) {
     
-    fun checkVersion(platform: String, currentVersion: String): VersionCheckResult {
+    fun checkVersion(platform: String, currentVersionCode: Int): VersionCheckResult {
         val appVersion = appVersionPort.getAppVersion(platform)
             ?: return VersionCheckResult.notFound()
         
-        val requiresUpdate = appVersion.requiresUpdate(currentVersion)
-        val hasUpdate = appVersion.hasUpdate(currentVersion)
+        val requiresUpdate = appVersion.requiresUpdate(currentVersionCode)
+        val hasUpdate = appVersion.hasUpdate(currentVersionCode)
         
         return VersionCheckResult(
-            minVersion = appVersion.minVersion,
-            latestVersion = appVersion.latestVersion,
+            minVersionCode = appVersion.minVersionCode,
+            latestVersionCode = appVersion.latestVersionCode,
+            latestVersionName = appVersion.latestVersionName,
             forceUpdate = requiresUpdate && appVersion.forceUpdate,
             updateAvailable = hasUpdate,
             updateUrl = appVersion.updateUrl,
@@ -32,8 +33,9 @@ class AppVersionService(
 }
 
 data class VersionCheckResult(
-    val minVersion: String,
-    val latestVersion: String,
+    val minVersionCode: Int,
+    val latestVersionCode: Int,
+    val latestVersionName: String,
     val forceUpdate: Boolean,
     val updateAvailable: Boolean,
     val updateUrl: String?,
@@ -41,8 +43,9 @@ data class VersionCheckResult(
 ) {
     companion object {
         fun notFound() = VersionCheckResult(
-            minVersion = "0.0.0",
-            latestVersion = "0.0.0",
+            minVersionCode = 0,
+            latestVersionCode = 0,
+            latestVersionName = "0.0.0",
             forceUpdate = false,
             updateAvailable = false,
             updateUrl = null,

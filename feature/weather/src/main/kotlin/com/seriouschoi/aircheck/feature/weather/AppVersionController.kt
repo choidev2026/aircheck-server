@@ -18,22 +18,23 @@ class AppVersionController(
      * 앱 버전 체크 API
      * 
      * @param platform 플랫폼 (android, ios)
-     * @param currentVersion 현재 앱 버전
+     * @param versionCode 현재 앱 버전 코드
      * @return 버전 체크 결과
      */
     @GetMapping("/version")
     fun checkVersion(
         @RequestParam platform: String,
-        @RequestParam currentVersion: String
+        @RequestParam versionCode: Int
     ): ResponseEntity<VersionCheckResponse> {
-        val result = appVersionService.checkVersion(platform, currentVersion)
+        val result = appVersionService.checkVersion(platform, versionCode)
         return ResponseEntity.ok(result.toResponse())
     }
 }
 
 data class VersionCheckResponse(
-    val minVersion: String,
-    val latestVersion: String,
+    val minVersionCode: Int,
+    val latestVersionCode: Int,
+    val latestVersionName: String,
     val forceUpdate: Boolean,
     val updateAvailable: Boolean,
     val updateUrl: String?,
@@ -41,8 +42,9 @@ data class VersionCheckResponse(
 )
 
 private fun VersionCheckResult.toResponse() = VersionCheckResponse(
-    minVersion = minVersion,
-    latestVersion = latestVersion,
+    minVersionCode = minVersionCode,
+    latestVersionCode = latestVersionCode,
+    latestVersionName = latestVersionName,
     forceUpdate = forceUpdate,
     updateAvailable = updateAvailable,
     updateUrl = updateUrl,

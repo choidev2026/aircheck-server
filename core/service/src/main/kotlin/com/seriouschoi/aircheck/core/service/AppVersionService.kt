@@ -19,7 +19,6 @@ class AppVersionService(
         return VersionCheckResult(
             minVersionCode = appVersion.minVersionCode,
             latestVersionCode = appVersion.latestVersionCode,
-            latestVersionName = appVersion.latestVersionName,
             forceUpdate = requiresUpdate && appVersion.forceUpdate,
             updateAvailable = hasUpdate,
             updateUrl = appVersion.updateUrl,
@@ -35,7 +34,6 @@ class AppVersionService(
 data class VersionCheckResult(
     val minVersionCode: Int,
     val latestVersionCode: Int,
-    val latestVersionName: String,
     val forceUpdate: Boolean,
     val updateAvailable: Boolean,
     val updateUrl: String?,
@@ -45,7 +43,6 @@ data class VersionCheckResult(
         fun notFound() = VersionCheckResult(
             minVersionCode = 0,
             latestVersionCode = 0,
-            latestVersionName = "0.0.0",
             forceUpdate = false,
             updateAvailable = false,
             updateUrl = null,

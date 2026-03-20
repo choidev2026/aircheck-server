@@ -20,9 +20,6 @@ class AppVersionEntity(
     @Column(name = "latest_version_code", nullable = false)
     val latestVersionCode: Int,
     
-    @Column(name = "latest_version_name", nullable = false, length = 20)
-    val latestVersionName: String,
-    
     @Column(name = "force_update", nullable = false)
     val forceUpdate: Boolean = false,
     

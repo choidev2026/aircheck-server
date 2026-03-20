@@ -32,7 +32,6 @@ class AppVersionAdapter(
                 platform = platformEnum,
                 minVersionCode = appVersion.minVersionCode,
                 latestVersionCode = appVersion.latestVersionCode,
-                latestVersionName = appVersion.latestVersionName,
                 forceUpdate = appVersion.forceUpdate,
                 updateUrl = appVersion.updateUrl,
                 message = appVersion.message,
@@ -43,7 +42,6 @@ class AppVersionAdapter(
                 platform = platformEnum,
                 minVersionCode = appVersion.minVersionCode,
                 latestVersionCode = appVersion.latestVersionCode,
-                latestVersionName = appVersion.latestVersionName,
                 forceUpdate = appVersion.forceUpdate,
                 updateUrl = appVersion.updateUrl,
                 message = appVersion.message
@@ -57,7 +55,6 @@ class AppVersionAdapter(
         platform = platform.name,
         minVersionCode = minVersionCode,
         latestVersionCode = latestVersionCode,
-        latestVersionName = latestVersionName,
         forceUpdate = forceUpdate,
         updateUrl = updateUrl,
         message = message

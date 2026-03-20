@@ -34,7 +34,6 @@ class AppVersionController(
 data class VersionCheckResponse(
     val minVersionCode: Int,
     val latestVersionCode: Int,
-    val latestVersionName: String,
     val forceUpdate: Boolean,
     val updateAvailable: Boolean,
     val updateUrl: String?,
@@ -44,7 +43,6 @@ data class VersionCheckResponse(
 private fun VersionCheckResult.toResponse() = VersionCheckResponse(
     minVersionCode = minVersionCode,
     latestVersionCode = latestVersionCode,
-    latestVersionName = latestVersionName,
     forceUpdate = forceUpdate,
     updateAvailable = updateAvailable,
     updateUrl = updateUrl,

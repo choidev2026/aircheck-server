@@ -466,21 +466,28 @@ class KmaAdapter(
      * 초단기예보와 단기예보 시간별 데이터 결합
      * - 초단기예보: 6시간 (더 정확)
      * - 단기예보: 7~48시간
+     * - 현재 시간 이후만 포함
      */
     private fun combineHourlyForecasts(
         ultraShort: List<HourlyForecast>,
         extended: List<HourlyForecast>
     ): List<HourlyForecast> {
-        if (ultraShort.isEmpty()) return extended.take(48)
-        if (extended.isEmpty()) return ultraShort
+        val now = LocalDateTime.now()
         
-        // 초단기예보의 마지막 시간
-        val ultraShortTimes = ultraShort.map { it.time }.toSet()
+        // 현재 시간 이후만 필터링
+        val filteredUltraShort = ultraShort.filter { it.time >= now.withMinute(0).withSecond(0).withNano(0) }
+        val filteredExtended = extended.filter { it.time >= now.withMinute(0).withSecond(0).withNano(0) }
+        
+        if (filteredUltraShort.isEmpty()) return filteredExtended.take(48)
+        if (filteredExtended.isEmpty()) return filteredUltraShort.take(48)
+        
+        // 초단기예보의 시간들
+        val ultraShortTimes = filteredUltraShort.map { it.time }.toSet()
         
         // 중복되지 않는 단기예보만 추가
-        val additionalHours = extended.filter { it.time !in ultraShortTimes }
+        val additionalHours = filteredExtended.filter { it.time !in ultraShortTimes }
         
-        return (ultraShort + additionalHours).sortedBy { it.time }.take(48)
+        return (filteredUltraShort + additionalHours).sortedBy { it.time }.take(48)
     }
     
     /**

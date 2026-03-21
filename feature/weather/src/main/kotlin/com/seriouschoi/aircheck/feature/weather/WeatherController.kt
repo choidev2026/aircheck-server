@@ -4,6 +4,10 @@ import com.seriouschoi.aircheck.core.domain.model.AirQualityResponse
 import com.seriouschoi.aircheck.core.domain.model.WeatherResponse
 import com.seriouschoi.aircheck.core.domain.port.CombinedWeatherResult
 import com.seriouschoi.aircheck.core.domain.port.GetWeatherUseCase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -106,14 +110,19 @@ class WeatherController(
     fun getBatchWeather(
         @RequestBody request: BatchWeatherRequest
     ): ResponseEntity<List<BatchWeatherItem>> {
-        val results = request.locations.take(10).map { location ->
-            val result = weatherUseCase.getCombined(location.lat, location.lng)
-            BatchWeatherItem(
-                lat = location.lat,
-                lng = location.lng,
-                weather = result.weather,
-                airQuality = result.airQuality
-            )
+        // 병렬 처리로 성능 향상
+        val results = runBlocking {
+            request.locations.take(10).map { location ->
+                async(Dispatchers.IO) {
+                    val result = weatherUseCase.getCombined(location.lat, location.lng)
+                    BatchWeatherItem(
+                        lat = location.lat,
+                        lng = location.lng,
+                        weather = result.weather,
+                        airQuality = result.airQuality
+                    )
+                }
+            }.awaitAll()
         }
         return ResponseEntity.ok(results)
     }

@@ -350,8 +350,8 @@ class KmaAdapter(
         // 체감온도 계산 (간단한 공식)
         val feelsLike = calculateFeelsLike(temperature, windSpeed, humidity)
         
-        // 현재 시간 기준 낮/밤 판단
-        val hour = LocalDateTime.now().hour
+        // 현재 시간 기준 낮/밤 판단 (KST 기준)
+        val hour = java.time.ZonedDateTime.now(KST).hour
         val isDay = hour in 6..18
         
         // 날씨 상태 변환

@@ -257,7 +257,8 @@ class KmaAdapter(
      * 초단기예보: 30분 기준
      */
     private fun calculateBaseDateTime(): Pair<String, String> {
-        val now = LocalDateTime.now()
+        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
+        val now = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
         
         // 초단기실황은 매시 정각 발표, 40분 후 생성
         // 안전하게 1시간 전 데이터 사용
@@ -282,7 +283,8 @@ class KmaAdapter(
      * 발표시각: 02, 05, 08, 11, 14, 17, 20, 23시
      */
     private fun calculateVilageFcstBaseDateTime(): Pair<String, String> {
-        val now = LocalDateTime.now()
+        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
+        val now = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
         val hour = now.hour
         
         // 발표 시각 목록 (10분 후 사용 가능)
@@ -472,11 +474,14 @@ class KmaAdapter(
         ultraShort: List<HourlyForecast>,
         extended: List<HourlyForecast>
     ): List<HourlyForecast> {
-        val now = LocalDateTime.now()
+        // KMA 데이터는 KST 기준이므로 KST로 비교
+        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
+        val nowKst = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
+        val currentHour = nowKst.withMinute(0).withSecond(0).withNano(0)
         
         // 현재 시간 이후만 필터링
-        val filteredUltraShort = ultraShort.filter { it.time >= now.withMinute(0).withSecond(0).withNano(0) }
-        val filteredExtended = extended.filter { it.time >= now.withMinute(0).withSecond(0).withNano(0) }
+        val filteredUltraShort = ultraShort.filter { it.time >= currentHour }
+        val filteredExtended = extended.filter { it.time >= currentHour }
         
         if (filteredUltraShort.isEmpty()) return filteredExtended.take(48)
         if (filteredExtended.isEmpty()) return filteredUltraShort.take(48)

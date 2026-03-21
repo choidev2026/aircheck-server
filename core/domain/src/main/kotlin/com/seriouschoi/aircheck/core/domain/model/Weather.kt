@@ -1,8 +1,8 @@
 package com.seriouschoi.aircheck.core.domain.model
 
-import com.seriouschoi.aircheck.core.domain.serializer.LocalDateTimeSerializer
+import com.seriouschoi.aircheck.core.domain.serializer.InstantSerializer
 import kotlinx.serialization.Serializable
-import java.time.LocalDateTime
+import java.time.Instant
 
 /**
  * 날씨 응답 (앱으로 전달)
@@ -28,9 +28,9 @@ data class CurrentWeather(
 
 @Serializable
 data class HourlyForecast(
-    @Serializable(with = LocalDateTimeSerializer::class)
-    val time: LocalDateTime,
-    val hour: Int,
+    @Serializable(with = InstantSerializer::class)
+    val time: Instant,
+    val hour: Int,  // KST 기준 시간 (표시용)
     val temperature: Double,
     val feelsLike: Double,
     val precipitationProbability: Int,

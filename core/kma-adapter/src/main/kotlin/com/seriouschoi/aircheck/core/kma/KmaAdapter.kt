@@ -22,8 +22,12 @@ import org.springframework.cache.annotation.Cacheable
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestTemplate
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private val KST = ZoneId.of("Asia/Seoul")
 
 private val logger = KotlinLogging.logger {}
 
@@ -257,8 +261,7 @@ class KmaAdapter(
      * 초단기예보: 30분 기준
      */
     private fun calculateBaseDateTime(): Pair<String, String> {
-        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
-        val now = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
+        val now = java.time.ZonedDateTime.now(KST).toLocalDateTime()
         
         // 초단기실황은 매시 정각 발표, 40분 후 생성
         // 안전하게 1시간 전 데이터 사용
@@ -283,8 +286,7 @@ class KmaAdapter(
      * 발표시각: 02, 05, 08, 11, 14, 17, 20, 23시
      */
     private fun calculateVilageFcstBaseDateTime(): Pair<String, String> {
-        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
-        val now = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
+        val now = java.time.ZonedDateTime.now(KST).toLocalDateTime()
         val hour = now.hour
         
         // 발표 시각 목록 (10분 후 사용 가능)
@@ -396,14 +398,16 @@ class KmaAdapter(
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
             
-            val dateTime = LocalDateTime.parse(
+            val kstDateTime = LocalDateTime.parse(
                 "${fcstDate}${fcstTime}",
                 DateTimeFormatter.ofPattern("yyyyMMddHHmm")
             )
+            // KST → UTC 변환
+            val utcInstant = kstDateTime.atZone(KST).toInstant()
             
             HourlyForecast(
-                time = dateTime,
-                hour = hour,
+                time = utcInstant,
+                hour = hour,  // KST 시간 유지 (표시용)
                 temperature = temperature,
                 feelsLike = temperature, // 예보에서는 체감온도 별도 계산 필요
                 precipitationProbability = pop,
@@ -446,14 +450,16 @@ class KmaAdapter(
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
             
-            val dateTime = LocalDateTime.parse(
+            val kstDateTime = LocalDateTime.parse(
                 "${fcstDate}${fcstTime}",
                 DateTimeFormatter.ofPattern("yyyyMMddHHmm")
             )
+            // KST → UTC 변환
+            val utcInstant = kstDateTime.atZone(KST).toInstant()
             
             HourlyForecast(
-                time = dateTime,
-                hour = hour,
+                time = utcInstant,
+                hour = hour,  // KST 시간 유지 (표시용)
                 temperature = temperature,
                 feelsLike = temperature,
                 precipitationProbability = pop,
@@ -474,14 +480,12 @@ class KmaAdapter(
         ultraShort: List<HourlyForecast>,
         extended: List<HourlyForecast>
     ): List<HourlyForecast> {
-        // KMA 데이터는 KST 기준이므로 KST로 비교
-        val koreaZone = java.time.ZoneId.of("Asia/Seoul")
-        val nowKst = java.time.ZonedDateTime.now(koreaZone).toLocalDateTime()
-        val currentHour = nowKst.withMinute(0).withSecond(0).withNano(0)
+        // 현재 시간 (UTC) - 분/초 절삭
+        val nowUtc = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         
         // 현재 시간 이후만 필터링
-        val filteredUltraShort = ultraShort.filter { it.time >= currentHour }
-        val filteredExtended = extended.filter { it.time >= currentHour }
+        val filteredUltraShort = ultraShort.filter { it.time >= nowUtc }
+        val filteredExtended = extended.filter { it.time >= nowUtc }
         
         if (filteredUltraShort.isEmpty()) return filteredExtended.take(48)
         if (filteredExtended.isEmpty()) return filteredUltraShort.take(48)

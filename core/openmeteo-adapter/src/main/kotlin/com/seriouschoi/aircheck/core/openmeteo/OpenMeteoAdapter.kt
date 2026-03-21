@@ -13,7 +13,9 @@ import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -104,9 +106,11 @@ class OpenMeteoAdapter(
                 ),
                 hourlyForecast = hourly.time.mapIndexed { index, time ->
                     val dateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    // Open-Meteo는 UTC 반환 (기본 설정)
+                    val utcInstant = dateTime.toInstant(ZoneOffset.UTC)
                     HourlyForecast(
-                        time = dateTime,
-                        hour = dateTime.hour,
+                        time = utcInstant,
+                        hour = dateTime.hour,  // UTC 시간
                         temperature = hourly.temperature.getOrElse(index) { 0.0 },
                         feelsLike = hourly.feelsLike.getOrElse(index) { 0.0 },
                         precipitationProbability = hourly.precipitationProbability.getOrElse(index) { 0 },

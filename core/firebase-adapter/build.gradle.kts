@@ -8,8 +8,9 @@ dependencies {
     implementation("org.springframework:spring-context:6.2.4")
     implementation("org.springframework:spring-web:6.2.4")
     
-    // Jakarta Servlet
+    // Jakarta
     implementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
+    implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
     
     // Firebase Admin (App Check 검증용)
     implementation("com.google.firebase:firebase-admin:9.3.0")

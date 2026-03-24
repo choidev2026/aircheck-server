@@ -40,9 +40,14 @@ kma:
   api:
     key: ${AIRKOREA_API_KEY:}
 
-# Firebase (FCM)
+# Firebase
 firebase:
   credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
+  key-path: ${FIREBASE_KEY_PATH:/opt/aircheck/firebase-key.json}
+
+# App Check
+appcheck:
+  enabled: ${APPCHECK_ENABLED:false}
 
 # Admin API
 admin:

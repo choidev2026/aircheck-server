@@ -1,4 +1,4 @@
-package com.seriouschoi.aircheck.filter
+package com.seriouschoi.aircheck.core.firebase
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest

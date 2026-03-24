@@ -8,6 +8,7 @@ include(":core:openmeteo-adapter")
 include(":core:kma-adapter")
 include(":core:persistence-adapter")
 include(":core:fcm-adapter")
+include(":core:firebase-adapter")
 
 // Feature modules
 include(":feature:weather")

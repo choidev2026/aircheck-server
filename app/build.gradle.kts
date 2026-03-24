@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":core:kma-adapter"))
     implementation(project(":core:persistence-adapter"))
     implementation(project(":core:fcm-adapter"))
+    implementation(project(":core:firebase-adapter"))
     
     // Feature modules
     implementation(project(":feature:weather"))

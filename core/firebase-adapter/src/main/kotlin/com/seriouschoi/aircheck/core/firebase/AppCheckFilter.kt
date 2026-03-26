@@ -42,6 +42,7 @@ class AppCheckFilter(
         // 검증 제외 경로
         private val EXCLUDED_PATHS = listOf(
             "/swagger-ui",
+            "/api-docs",
             "/v3/api-docs",
             "/actuator",
             "/admin"

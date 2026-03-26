@@ -39,11 +39,8 @@ class AppCheckFilter(
         private const val JWKS_URL = "https://firebaseappcheck.googleapis.com/v1/jwks"
         private const val ISSUER_PREFIX = "https://firebaseappcheck.googleapis.com/"
         
-        // 검증 제외 경로
+        // 검증 제외 경로 (관리용만)
         private val EXCLUDED_PATHS = listOf(
-            "/swagger-ui",
-            "/api-docs",
-            "/v3/api-docs",
             "/actuator",
             "/admin"
         )

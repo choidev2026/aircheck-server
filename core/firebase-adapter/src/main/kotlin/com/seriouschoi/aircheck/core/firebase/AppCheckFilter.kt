@@ -27,7 +27,9 @@ class AppCheckFilter(
     @Value("\${appcheck.enabled:false}")
     private val enabled: Boolean,
     @Value("\${firebase.project-id:}")
-    private val projectId: String
+    private val projectId: String,
+    @Value("\${firebase.project-number:}")
+    private val projectNumber: String
 ) : OncePerRequestFilter() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -53,7 +55,7 @@ class AppCheckFilter(
         .build()
     
     init {
-        log.info("[AppCheck] 필터 초기화 (enabled={}, projectId={})", enabled, projectId)
+        log.info("[AppCheck] 필터 초기화 (enabled={}, projectNumber={})", enabled, projectNumber)
     }
 
     override fun doFilterInternal(
@@ -122,10 +124,11 @@ class AppCheckFilter(
             // 서명 검증
             val verified: DecodedJWT = verifier.verify(token)
             
-            // issuer 확인 (firebaseappcheck.googleapis.com 으로 시작하는지)
+            // issuer 확인 (정확히 일치)
             val issuer = verified.issuer ?: ""
-            if (!issuer.startsWith(ISSUER_PREFIX)) {
-                log.warn("[AppCheck] issuer 불일치: {}", issuer)
+            val expectedIssuer = "$ISSUER_PREFIX$projectNumber"
+            if (projectNumber.isNotBlank() && issuer != expectedIssuer) {
+                log.warn("[AppCheck] issuer 불일치: expected={}, actual={}", expectedIssuer, issuer)
                 return false
             }
             

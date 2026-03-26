@@ -45,6 +45,7 @@ firebase:
   credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
   key-path: ${FIREBASE_KEY_PATH:/opt/aircheck/firebase-key.json}
   project-id: ${FIREBASE_PROJECT_ID:air-check-7e17e}
+  project-number: ${FIREBASE_PROJECT_NUMBER:929627870632}
 
 # App Check
 appcheck:

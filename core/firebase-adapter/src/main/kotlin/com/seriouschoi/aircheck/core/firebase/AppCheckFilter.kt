@@ -116,13 +116,27 @@ class AppCheckFilter(
             // 알고리즘 설정 및 검증
             val algorithm = Algorithm.RSA256(publicKey, null)
             val verifier = JWT.require(algorithm)
-                .withIssuer("$ISSUER_PREFIX${projectId}")
-                .withAudience("projects/$projectId")
                 .acceptLeeway(60)  // 60초 여유
                 .build()
             
+            // 서명 검증
             val verified: DecodedJWT = verifier.verify(token)
-            log.debug("[AppCheck] 검증 성공: sub={}", verified.subject)
+            
+            // issuer 확인 (firebaseappcheck.googleapis.com 으로 시작하는지)
+            val issuer = verified.issuer ?: ""
+            if (!issuer.startsWith(ISSUER_PREFIX)) {
+                log.warn("[AppCheck] issuer 불일치: {}", issuer)
+                return false
+            }
+            
+            // audience 확인 (프로젝트 ID 포함 여부)
+            val audiences = verified.audience ?: emptyList()
+            if (projectId.isNotBlank() && audiences.none { it.contains(projectId) }) {
+                log.warn("[AppCheck] audience 불일치: {}", audiences)
+                return false
+            }
+            
+            log.debug("[AppCheck] 검증 성공: iss={}, sub={}", issuer, verified.subject)
             true
         } catch (e: Exception) {
             log.warn("[AppCheck] 검증 실패: {}", e.message)

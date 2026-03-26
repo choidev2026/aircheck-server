@@ -385,6 +385,8 @@ class KmaAdapter(
             var pty = 0
             var pop = 0
             var sno = 0.0
+            var windSpeed = 0.0
+            var humidity = 50
             
             timeItems.forEach { item ->
                 when (item.category) {
@@ -393,10 +395,13 @@ class KmaAdapter(
                     "PTY" -> pty = item.fcstValue.toIntOrNull() ?: 0
                     "POP" -> pop = item.fcstValue.toIntOrNull() ?: 0
                     "SNO" -> sno = item.fcstValue.toDoubleOrNull() ?: 0.0
+                    "WSD" -> windSpeed = item.fcstValue.toDoubleOrNull() ?: 0.0
+                    "REH" -> humidity = item.fcstValue.toIntOrNull() ?: 50
                 }
             }
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
+            val feelsLike = calculateFeelsLike(temperature, windSpeed, humidity)
             
             val kstDateTime = LocalDateTime.parse(
                 "${fcstDate}${fcstTime}",
@@ -409,7 +414,7 @@ class KmaAdapter(
                 time = utcInstant,
                 hour = hour,  // KST 시간 유지 (표시용)
                 temperature = temperature,
-                feelsLike = temperature, // 예보에서는 체감온도 별도 계산 필요
+                feelsLike = feelsLike,
                 precipitationProbability = pop,
                 snowfall = sno,
                 weatherCode = pty * 10 + sky,
@@ -437,6 +442,8 @@ class KmaAdapter(
             var pty = 0
             var pop = 0
             var sno = 0.0
+            var windSpeed = 0.0
+            var humidity = 50
             
             timeItems.forEach { item ->
                 when (item.category) {
@@ -445,10 +452,13 @@ class KmaAdapter(
                     "PTY" -> pty = item.fcstValue.toIntOrNull() ?: 0
                     "POP" -> pop = item.fcstValue.toIntOrNull() ?: 0
                     "SNO" -> sno = item.fcstValue.toDoubleOrNull() ?: 0.0
+                    "WSD" -> windSpeed = item.fcstValue.toDoubleOrNull() ?: 0.0
+                    "REH" -> humidity = item.fcstValue.toIntOrNull() ?: 50
                 }
             }
             
             val weatherCondition = convertToWeatherCondition(pty, sky)
+            val feelsLike = calculateFeelsLike(temperature, windSpeed, humidity)
             
             val kstDateTime = LocalDateTime.parse(
                 "${fcstDate}${fcstTime}",
@@ -461,7 +471,7 @@ class KmaAdapter(
                 time = utcInstant,
                 hour = hour,  // KST 시간 유지 (표시용)
                 temperature = temperature,
-                feelsLike = temperature,
+                feelsLike = feelsLike,
                 precipitationProbability = pop,
                 snowfall = sno,
                 weatherCode = pty * 10 + sky,

@@ -1,6 +1,9 @@
 package com.seriouschoi.aircheck.core.firebase
 
-import com.google.firebase.FirebaseApp
+import com.auth0.jwk.JwkProviderBuilder
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
+import com.auth0.jwt.interfaces.DecodedJWT
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -8,13 +11,16 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import java.util.Base64
+import java.net.URL
+import java.security.interfaces.RSAPublicKey
+import java.util.concurrent.TimeUnit
 
 /**
  * Firebase App Check 토큰 검증 필터
  * 
- * appcheck.enabled=true 일 때만 차단 모드
- * false일 때는 로그만 찍고 통과
+ * - JWKS에서 공개키를 가져와 JWT 서명 검증
+ * - issuer, audience, 만료시간 확인
+ * - appcheck.enabled=true 일 때만 차단 모드
  */
 @Component
 class AppCheckFilter(
@@ -28,6 +34,8 @@ class AppCheckFilter(
 
     companion object {
         private const val HEADER_APP_CHECK = "X-Firebase-AppCheck"
+        private const val JWKS_URL = "https://firebaseappcheck.googleapis.com/v1/jwks"
+        private const val ISSUER_PREFIX = "https://firebaseappcheck.googleapis.com/"
         
         // 검증 제외 경로
         private val EXCLUDED_PATHS = listOf(
@@ -37,6 +45,12 @@ class AppCheckFilter(
             "/admin"
         )
     }
+    
+    // JWKS Provider (캐싱 + 자동 갱신)
+    private val jwkProvider = JwkProviderBuilder(URL(JWKS_URL))
+        .cached(10, 24, TimeUnit.HOURS)  // 최대 10개 키, 24시간 캐시
+        .rateLimited(10, 1, TimeUnit.MINUTES)  // 분당 10회 제한
+        .build()
     
     init {
         log.info("[AppCheck] 필터 초기화 (enabled={}, projectId={})", enabled, projectId)
@@ -86,47 +100,29 @@ class AppCheckFilter(
     /**
      * App Check 토큰 검증
      * 
-     * JWT 형식 검증 + issuer/audience 확인
-     * TODO: Firebase 공개키로 서명 검증 추가
+     * 1. JWT 디코딩
+     * 2. JWKS에서 공개키로 서명 검증
+     * 3. issuer, audience, 만료시간 확인
      */
     private fun verifyToken(token: String): Boolean {
         return try {
-            // JWT 형식 확인 (header.payload.signature)
-            val parts = token.split(".")
-            if (parts.size != 3) {
-                log.warn("[AppCheck] JWT 형식 아님")
-                return false
-            }
+            // JWT 디코딩 (검증 전)
+            val jwt = JWT.decode(token)
             
-            // Payload 디코딩
-            val payload = String(Base64.getUrlDecoder().decode(parts[1]))
+            // JWKS에서 공개키 가져오기
+            val jwk = jwkProvider.get(jwt.keyId)
+            val publicKey = jwk.publicKey as RSAPublicKey
             
-            // issuer 확인 (Firebase App Check)
-            if (!payload.contains("\"iss\":\"https://firebaseappcheck.googleapis.com/")) {
-                log.warn("[AppCheck] issuer 불일치")
-                return false
-            }
+            // 알고리즘 설정 및 검증
+            val algorithm = Algorithm.RSA256(publicKey, null)
+            val verifier = JWT.require(algorithm)
+                .withIssuer("$ISSUER_PREFIX${projectId}")
+                .withAudience("projects/$projectId")
+                .acceptLeeway(60)  // 60초 여유
+                .build()
             
-            // audience 확인 (프로젝트 ID)
-            if (projectId.isNotBlank() && !payload.contains("\"aud\":[\"projects/$projectId\"]")) {
-                // audience 형식이 다를 수 있으므로 프로젝트 ID만 포함 여부 확인
-                if (!payload.contains(projectId)) {
-                    log.warn("[AppCheck] audience 불일치")
-                    return false
-                }
-            }
-            
-            // 만료 시간 확인
-            val expMatch = Regex("\"exp\":(\\d+)").find(payload)
-            if (expMatch != null) {
-                val exp = expMatch.groupValues[1].toLong()
-                val now = System.currentTimeMillis() / 1000
-                if (exp < now) {
-                    log.warn("[AppCheck] 토큰 만료")
-                    return false
-                }
-            }
-            
+            val verified: DecodedJWT = verifier.verify(token)
+            log.debug("[AppCheck] 검증 성공: sub={}", verified.subject)
             true
         } catch (e: Exception) {
             log.warn("[AppCheck] 검증 실패: {}", e.message)

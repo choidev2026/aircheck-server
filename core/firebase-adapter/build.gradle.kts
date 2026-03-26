@@ -15,6 +15,10 @@ dependencies {
     // Firebase Admin (App Check 검증용)
     implementation("com.google.firebase:firebase-admin:9.3.0")
     
+    // JWT 검증
+    implementation("com.auth0:java-jwt:4.4.0")
+    implementation("com.auth0:jwks-rsa:0.22.1")
+    
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.16")
 }

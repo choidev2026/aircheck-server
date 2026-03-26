@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.util.Base64
 
 /**
  * Firebase App Check 토큰 검증 필터
@@ -18,7 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter
 @Component
 class AppCheckFilter(
     @Value("\${appcheck.enabled:false}")
-    private val enabled: Boolean
+    private val enabled: Boolean,
+    @Value("\${firebase.project-id:}")
+    private val projectId: String
 ) : OncePerRequestFilter() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -36,7 +39,7 @@ class AppCheckFilter(
     }
     
     init {
-        log.info("[AppCheck] 필터 초기화 (enabled={})", enabled)
+        log.info("[AppCheck] 필터 초기화 (enabled={}, projectId={})", enabled, projectId)
     }
 
     override fun doFilterInternal(
@@ -61,15 +64,16 @@ class AppCheckFilter(
                 return
             }
         } else {
-            log.info("[AppCheck] 토큰 수신: {} {} (length={})", request.method, path, token.length)
-            
-            // TODO: Firebase Admin SDK로 토큰 검증 구현
-            // 현재는 토큰이 있으면 통과
-            // val isValid = verifyToken(token)
-            // if (!isValid && enabled) {
-            //     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid App Check token")
-            //     return
-            // }
+            val isValid = verifyToken(token)
+            if (isValid) {
+                log.debug("[AppCheck] 토큰 유효: {} {}", request.method, path)
+            } else {
+                log.warn("[AppCheck] 토큰 무효: {} {}", request.method, path)
+                if (enabled) {
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid App Check token")
+                    return
+                }
+            }
         }
         
         filterChain.doFilter(request, response)
@@ -77,5 +81,56 @@ class AppCheckFilter(
     
     private fun isExcludedPath(path: String): Boolean {
         return EXCLUDED_PATHS.any { path.startsWith(it) }
+    }
+    
+    /**
+     * App Check 토큰 검증
+     * 
+     * JWT 형식 검증 + issuer/audience 확인
+     * TODO: Firebase 공개키로 서명 검증 추가
+     */
+    private fun verifyToken(token: String): Boolean {
+        return try {
+            // JWT 형식 확인 (header.payload.signature)
+            val parts = token.split(".")
+            if (parts.size != 3) {
+                log.warn("[AppCheck] JWT 형식 아님")
+                return false
+            }
+            
+            // Payload 디코딩
+            val payload = String(Base64.getUrlDecoder().decode(parts[1]))
+            
+            // issuer 확인 (Firebase App Check)
+            if (!payload.contains("\"iss\":\"https://firebaseappcheck.googleapis.com/")) {
+                log.warn("[AppCheck] issuer 불일치")
+                return false
+            }
+            
+            // audience 확인 (프로젝트 ID)
+            if (projectId.isNotBlank() && !payload.contains("\"aud\":[\"projects/$projectId\"]")) {
+                // audience 형식이 다를 수 있으므로 프로젝트 ID만 포함 여부 확인
+                if (!payload.contains(projectId)) {
+                    log.warn("[AppCheck] audience 불일치")
+                    return false
+                }
+            }
+            
+            // 만료 시간 확인
+            val expMatch = Regex("\"exp\":(\\d+)").find(payload)
+            if (expMatch != null) {
+                val exp = expMatch.groupValues[1].toLong()
+                val now = System.currentTimeMillis() / 1000
+                if (exp < now) {
+                    log.warn("[AppCheck] 토큰 만료")
+                    return false
+                }
+            }
+            
+            true
+        } catch (e: Exception) {
+            log.warn("[AppCheck] 검증 실패: {}", e.message)
+            false
+        }
     }
 }

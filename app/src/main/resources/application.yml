@@ -44,6 +44,7 @@ kma:
 firebase:
   credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
   key-path: ${FIREBASE_KEY_PATH:/opt/aircheck/firebase-key.json}
+  project-id: ${FIREBASE_PROJECT_ID:air-check-7e17e}
 
 # App Check
 appcheck:

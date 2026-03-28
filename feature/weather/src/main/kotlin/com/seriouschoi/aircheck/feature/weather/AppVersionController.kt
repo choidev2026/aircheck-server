@@ -1,7 +1,6 @@
 package com.seriouschoi.aircheck.feature.weather
 
-import com.seriouschoi.aircheck.core.service.AppVersionService
-import com.seriouschoi.aircheck.core.service.VersionCheckResult
+import com.seriouschoi.aircheck.core.service.ServiceVersionService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -11,40 +10,35 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/app")
 class AppVersionController(
-    private val appVersionService: AppVersionService
+    private val serviceVersionService: ServiceVersionService
 ) {
     
     /**
      * 앱 버전 체크 API
      * 
-     * @param platform 플랫폼 (android, ios)
+     * 강제 업데이트 여부를 확인합니다.
+     * currentVersion < minVersion 이면 needUpdate = true
+     * 
+     * @param osType OS 타입 (android, ios)
      * @param versionCode 현재 앱 버전 코드
-     * @return 버전 체크 결과
+     * @return 업데이트 필요 여부 및 스토어 URL
      */
     @GetMapping("/version")
     fun checkVersion(
-        @RequestParam platform: String,
+        @RequestParam osType: String,
         @RequestParam versionCode: Int
     ): ResponseEntity<VersionCheckResponse> {
-        val result = appVersionService.checkVersion(platform, versionCode)
-        return ResponseEntity.ok(result.toResponse())
+        val result = serviceVersionService.checkVersion(osType, versionCode)
+        return ResponseEntity.ok(
+            VersionCheckResponse(
+                needUpdate = result.needUpdate,
+                updateUrl = result.updateUrl
+            )
+        )
     }
 }
 
 data class VersionCheckResponse(
-    val minVersionCode: Int,
-    val latestVersionCode: Int,
-    val forceUpdate: Boolean,
-    val updateAvailable: Boolean,
-    val updateUrl: String?,
-    val message: String?
-)
-
-private fun VersionCheckResult.toResponse() = VersionCheckResponse(
-    minVersionCode = minVersionCode,
-    latestVersionCode = latestVersionCode,
-    forceUpdate = forceUpdate,
-    updateAvailable = updateAvailable,
-    updateUrl = updateUrl,
-    message = message
+    val needUpdate: Boolean,
+    val updateUrl: String?
 )

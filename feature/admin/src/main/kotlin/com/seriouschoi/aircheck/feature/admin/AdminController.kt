@@ -1,7 +1,5 @@
 package com.seriouschoi.aircheck.feature.admin
 
-import com.seriouschoi.aircheck.core.domain.model.AppVersion
-import com.seriouschoi.aircheck.core.service.AppVersionService
 import com.seriouschoi.aircheck.core.service.port.ApiUsagePort
 import com.seriouschoi.aircheck.core.service.port.ApiUsageStats
 import org.springframework.beans.factory.annotation.Value
@@ -15,7 +13,6 @@ import java.time.LocalDate
 @RequestMapping("/admin")
 class AdminController(
     private val apiUsagePort: ApiUsagePort,
-    private val appVersionService: AppVersionService,
     @Value("\${admin.api-key}") private val adminApiKey: String
 ) {
     
@@ -106,32 +103,6 @@ class AdminController(
         )
     }
     
-    // ─────────────────────────────────────────────────────────────────────────
-    // App Version Management
-    // ─────────────────────────────────────────────────────────────────────────
-    
-    /**
-     * 앱 버전 정보 설정/업데이트
-     */
-    @PostMapping("/app-version")
-    fun updateAppVersion(
-        @RequestHeader("X-Admin-Key") apiKey: String?,
-        @RequestBody request: AppVersionRequest
-    ): AppVersion {
-        validateApiKey(apiKey)
-        
-        val appVersion = AppVersion(
-            platform = request.platform.uppercase(),
-            minVersionCode = request.minVersionCode,
-            latestVersionCode = request.latestVersionCode,
-            forceUpdate = request.forceUpdate,
-            updateUrl = request.updateUrl,
-            message = request.message
-        )
-        
-        return appVersionService.updateVersion(appVersion)
-    }
-    
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,
@@ -152,13 +123,4 @@ data class RemainingCalls(
     val used: Long,
     val remaining: Long,
     val usagePercent: Double
-)
-
-data class AppVersionRequest(
-    val platform: String,
-    val minVersionCode: Int,
-    val latestVersionCode: Int,
-    val forceUpdate: Boolean = false,
-    val updateUrl: String? = null,
-    val message: String? = null
 )

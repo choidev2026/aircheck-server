@@ -1,5 +1,7 @@
 package com.seriouschoi.aircheck.feature.admin
 
+import com.seriouschoi.aircheck.core.domain.model.ServiceVersion
+import com.seriouschoi.aircheck.core.service.ServiceVersionService
 import com.seriouschoi.aircheck.core.service.port.ApiUsagePort
 import com.seriouschoi.aircheck.core.service.port.ApiUsageStats
 import org.springframework.beans.factory.annotation.Value
@@ -13,6 +15,7 @@ import java.time.LocalDate
 @RequestMapping("/admin")
 class AdminController(
     private val apiUsagePort: ApiUsagePort,
+    private val serviceVersionService: ServiceVersionService,
     @Value("\${admin.api-key}") private val adminApiKey: String
 ) {
     
@@ -103,6 +106,38 @@ class AdminController(
         )
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // Service Version Management (강제 업데이트)
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * 서비스 버전 조회
+     */
+    @GetMapping("/service-version/{osType}")
+    fun getServiceVersion(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
+        @PathVariable osType: String
+    ): ServiceVersion? {
+        validateApiKey(apiKey)
+        return serviceVersionService.getServiceVersion(osType)
+    }
+    
+    /**
+     * 서비스 버전 설정/업데이트
+     */
+    @PostMapping("/service-version")
+    fun updateServiceVersion(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
+        @RequestBody request: ServiceVersionRequest
+    ): ServiceVersion {
+        validateApiKey(apiKey)
+        return serviceVersionService.updateServiceVersion(
+            osType = request.osType,
+            minVersionCode = request.minVersionCode,
+            updateUrl = request.updateUrl
+        )
+    }
+    
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,
@@ -111,6 +146,12 @@ class AdminController(
         )
     }
 }
+
+data class ServiceVersionRequest(
+    val osType: String,
+    val minVersionCode: Int,
+    val updateUrl: String? = null
+)
 
 data class ApiUsageResponse(
     val date: LocalDate,

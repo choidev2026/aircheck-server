@@ -3,6 +3,7 @@ package com.seriouschoi.aircheck.core.persistence
 import com.seriouschoi.aircheck.core.domain.model.ServiceVersion
 import com.seriouschoi.aircheck.core.domain.port.ServiceVersionPort
 import org.springframework.stereotype.Component
+import java.time.LocalDateTime
 
 @Component
 class ServiceVersionAdapter(
@@ -17,6 +18,19 @@ class ServiceVersionAdapter(
         }
         
         return repository.findByOsType(osTypeEnum)?.toModel()
+    }
+    
+    override fun saveServiceVersion(serviceVersion: ServiceVersion): ServiceVersion {
+        val osTypeEnum = OsType.valueOf(serviceVersion.osType.uppercase())
+        
+        val entity = ServiceVersionEntity(
+            osType = osTypeEnum,
+            minVersionCode = serviceVersion.minVersionCode,
+            updateUrl = serviceVersion.updateUrl,
+            updatedAt = LocalDateTime.now()
+        )
+        
+        return repository.save(entity).toModel()
     }
     
     private fun ServiceVersionEntity.toModel() = ServiceVersion(

@@ -15,17 +15,17 @@ class WeatherService(
     private val airQualityPort: AirQualityPort
 ) : GetWeatherUseCase {
 
-    @Cacheable("weather", key = "#lat + ',' + #lng")
+    @Cacheable("weather", key = "#lat + ',' + #lng", unless = "#result == null")
     override fun getWeather(lat: Double, lng: Double): WeatherResponse? {
         return weatherPort.getWeather(lat, lng)
     }
 
-    @Cacheable("airquality", key = "#lat + ',' + #lng")
+    @Cacheable("airquality", key = "#lat + ',' + #lng", unless = "#result == null")
     override fun getAirQuality(lat: Double, lng: Double): AirQualityResponse? {
         return airQualityPort.getAirQuality(lat, lng)
     }
 
-    @Cacheable("combined", key = "#lat + ',' + #lng")
+    @Cacheable("combined", key = "#lat + ',' + #lng", unless = "#result.weather == null && #result.airQuality == null")
     override fun getCombined(lat: Double, lng: Double): CombinedWeatherResult {
         return CombinedWeatherResult(
             weather = weatherPort.getWeather(lat, lng),

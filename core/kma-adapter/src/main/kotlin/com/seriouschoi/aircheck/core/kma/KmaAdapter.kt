@@ -65,7 +65,7 @@ class KmaAdapter(
         coerceInputValues = true
     }
     
-    @Cacheable("kma-weather", key = "#lat + '_' + #lng")
+    @Cacheable("kma-weather", key = "#lat + '_' + #lng", unless = "#result == null")
     override fun getWeather(lat: Double, lng: Double): WeatherResponse? {
         if (apiKey.isBlank()) {
             logger.warn { "KMA API key not configured" }

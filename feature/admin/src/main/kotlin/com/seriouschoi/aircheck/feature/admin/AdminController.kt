@@ -6,6 +6,7 @@ import com.seriouschoi.aircheck.core.service.ServiceVersionService
 import com.seriouschoi.aircheck.core.service.port.ApiUsagePort
 import com.seriouschoi.aircheck.core.service.port.ApiUsageStats
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.cache.CacheManager
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -18,6 +19,7 @@ class AdminController(
     private val apiUsagePort: ApiUsagePort,
     private val serviceVersionService: ServiceVersionService,
     private val serviceConfigService: ServiceConfigService,
+    private val cacheManager: CacheManager,
     @Value("\${admin.api-key}") private val adminApiKey: String
 ) {
     
@@ -170,6 +172,60 @@ class AdminController(
         return AppCheckStatusResponse(enabled = request.enabled)
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // Cache Management
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * 캐시 목록 조회
+     */
+    @GetMapping("/cache")
+    fun getCacheNames(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): CacheStatusResponse {
+        validateApiKey(apiKey)
+        return CacheStatusResponse(
+            caches = cacheManager.cacheNames.toList()
+        )
+    }
+    
+    /**
+     * 전체 캐시 클리어
+     */
+    @DeleteMapping("/cache")
+    fun clearAllCaches(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): CacheClearResponse {
+        validateApiKey(apiKey)
+        val clearedCaches = mutableListOf<String>()
+        cacheManager.cacheNames.forEach { cacheName ->
+            cacheManager.getCache(cacheName)?.clear()
+            clearedCaches.add(cacheName)
+        }
+        return CacheClearResponse(
+            cleared = clearedCaches,
+            message = "${clearedCaches.size}개 캐시 클리어 완료"
+        )
+    }
+    
+    /**
+     * 특정 캐시 클리어
+     */
+    @DeleteMapping("/cache/{cacheName}")
+    fun clearCache(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
+        @PathVariable cacheName: String
+    ): CacheClearResponse {
+        validateApiKey(apiKey)
+        val cache = cacheManager.getCache(cacheName)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "캐시 '$cacheName' 없음")
+        cache.clear()
+        return CacheClearResponse(
+            cleared = listOf(cacheName),
+            message = "'$cacheName' 캐시 클리어 완료"
+        )
+    }
+    
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,
@@ -204,4 +260,13 @@ data class RemainingCalls(
     val used: Long,
     val remaining: Long,
     val usagePercent: Double
+)
+
+data class CacheStatusResponse(
+    val caches: List<String>
+)
+
+data class CacheClearResponse(
+    val cleared: List<String>,
+    val message: String
 )

@@ -6,6 +6,7 @@ import com.seriouschoi.aircheck.core.domain.model.HourlyForecast
 import com.seriouschoi.aircheck.core.domain.model.MidTermForecast
 import com.seriouschoi.aircheck.core.domain.model.WeatherCondition
 import com.seriouschoi.aircheck.core.domain.model.WeatherResponse
+import com.seriouschoi.aircheck.core.domain.port.ServiceConfigPort
 import com.seriouschoi.aircheck.core.domain.port.WeatherPort
 import com.seriouschoi.aircheck.core.kma.dto.FcstItem
 import com.seriouschoi.aircheck.core.kma.dto.KmaApiResponse
@@ -44,6 +45,7 @@ private val logger = KotlinLogging.logger {}
 @ConditionalOnProperty(name = ["weather.provider"], havingValue = "kma")
 class KmaAdapter(
     private val restTemplate: RestTemplate,
+    private val configPort: ServiceConfigPort,
     @Value("\${kma.api.key:}") private val apiKey: String,
     @Value("\${kma.api.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") 
     private val baseUrl: String,
@@ -68,6 +70,10 @@ class KmaAdapter(
         coerceInputValues = true
     }
     
+    private fun isParallelEnabled(): Boolean {
+        return configPort.get("kma_parallel_enabled")?.toBooleanStrictOrNull() ?: true
+    }
+    
     @Cacheable("kma-weather", key = "#lat + '_' + #lng", unless = "#result == null")
     override fun getWeather(lat: Double, lng: Double): WeatherResponse? {
         if (apiKey.isBlank()) {
@@ -83,39 +89,71 @@ class KmaAdapter(
             val (baseDate, baseTime) = calculateBaseDateTime()
             val (vilageFcstDate, vilageFcstTime) = calculateVilageFcstBaseDateTime()
             
-            // 병렬 API 호출
-            runBlocking(Dispatchers.IO) {
-                val currentDeferred = async { fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime) }
-                val ultraShortDeferred = async { fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime) }
-                val vilageFcstDeferred = async { fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime) }
-                val midTermDeferred = async { fetchMidTermForecast() }
-                
-                val currentWeather = currentDeferred.await()
-                val ultraShortForecast = ultraShortDeferred.await()
-                val vilageFcstItems = vilageFcstDeferred.await()
-                val midTermForecast = midTermDeferred.await()
-                
-                // 단기예보 파싱
-                val dailyForecast = parseDailyForecast(vilageFcstItems)
-                val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
-                val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
-                
-                if (currentWeather == null) {
-                    logger.warn { "Failed to fetch current weather" }
-                    return@runBlocking null
-                }
-                
-                WeatherResponse(
-                    current = currentWeather,
-                    hourlyForecast = hourlyForecast,
-                    dailyForecast = dailyForecast,
-                    midTermForecast = midTermForecast
-                )
+            if (isParallelEnabled()) {
+                // 병렬 API 호출
+                fetchWeatherParallel(grid, baseDate, baseTime, vilageFcstDate, vilageFcstTime)
+            } else {
+                // 순차 API 호출
+                fetchWeatherSequential(grid, baseDate, baseTime, vilageFcstDate, vilageFcstTime)
             }
         } catch (e: Exception) {
             logger.error(e) { "KMA API error: ${e.message}" }
             null
         }
+    }
+    
+    private fun fetchWeatherParallel(
+        grid: KmaGridConverter.Grid, baseDate: String, baseTime: String,
+        vilageFcstDate: String, vilageFcstTime: String
+    ): WeatherResponse? {
+        return runBlocking(Dispatchers.IO) {
+            val currentDeferred = async { fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime) }
+            val ultraShortDeferred = async { fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime) }
+            val vilageFcstDeferred = async { fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime) }
+            val midTermDeferred = async { fetchMidTermForecast() }
+            
+            val currentWeather = currentDeferred.await()
+            val ultraShortForecast = ultraShortDeferred.await()
+            val vilageFcstItems = vilageFcstDeferred.await()
+            val midTermForecast = midTermDeferred.await()
+            
+            buildWeatherResponse(currentWeather, ultraShortForecast, vilageFcstItems, midTermForecast)
+        }
+    }
+    
+    private fun fetchWeatherSequential(
+        grid: KmaGridConverter.Grid, baseDate: String, baseTime: String,
+        vilageFcstDate: String, vilageFcstTime: String
+    ): WeatherResponse? {
+        val currentWeather = fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime)
+        val ultraShortForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
+        val vilageFcstItems = fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
+        val midTermForecast = fetchMidTermForecast()
+        
+        return buildWeatherResponse(currentWeather, ultraShortForecast, vilageFcstItems, midTermForecast)
+    }
+    
+    private fun buildWeatherResponse(
+        currentWeather: CurrentWeather?,
+        ultraShortForecast: List<HourlyForecast>,
+        vilageFcstItems: List<FcstItem>,
+        midTermForecast: List<MidTermForecast>
+    ): WeatherResponse? {
+        val dailyForecast = parseDailyForecast(vilageFcstItems)
+        val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
+        val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
+        
+        if (currentWeather == null) {
+            logger.warn { "Failed to fetch current weather" }
+            return null
+        }
+        
+        return WeatherResponse(
+            current = currentWeather,
+            hourlyForecast = hourlyForecast,
+            dailyForecast = dailyForecast,
+            midTermForecast = midTermForecast
+        )
     }
     
     /**

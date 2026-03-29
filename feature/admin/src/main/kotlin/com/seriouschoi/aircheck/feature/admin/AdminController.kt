@@ -173,6 +173,36 @@ class AdminController(
     }
     
     // ─────────────────────────────────────────────────────────────────────────
+    // KMA API Settings
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * KMA 병렬 호출 상태 조회
+     */
+    @GetMapping("/kma/parallel")
+    fun getKmaParallelStatus(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): KmaParallelResponse {
+        validateApiKey(apiKey)
+        return KmaParallelResponse(
+            parallel = serviceConfigService.isKmaParallelEnabled()
+        )
+    }
+    
+    /**
+     * KMA 병렬/순차 호출 전환
+     */
+    @PostMapping("/kma/parallel")
+    fun toggleKmaParallel(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
+        @RequestBody request: KmaParallelRequest
+    ): KmaParallelResponse {
+        validateApiKey(apiKey)
+        serviceConfigService.setKmaParallelEnabled(request.parallel)
+        return KmaParallelResponse(parallel = request.parallel)
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
     // Cache Management
     // ─────────────────────────────────────────────────────────────────────────
     
@@ -269,4 +299,12 @@ data class CacheStatusResponse(
 data class CacheClearResponse(
     val cleared: List<String>,
     val message: String
+)
+
+data class KmaParallelRequest(
+    val parallel: Boolean
+)
+
+data class KmaParallelResponse(
+    val parallel: Boolean
 )

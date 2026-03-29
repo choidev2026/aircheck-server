@@ -9,6 +9,7 @@ class ServiceConfigService(
 ) {
     companion object {
         const val KEY_APPCHECK_ENABLED = "appcheck_enabled"
+        const val KEY_KMA_PARALLEL_ENABLED = "kma_parallel_enabled"
     }
     
     fun get(key: String): String? {
@@ -29,5 +30,13 @@ class ServiceConfigService(
     
     fun setAppCheckEnabled(enabled: Boolean) {
         set(KEY_APPCHECK_ENABLED, enabled.toString())
+    }
+    
+    fun isKmaParallelEnabled(): Boolean {
+        return getBoolean(KEY_KMA_PARALLEL_ENABLED, default = true)
+    }
+    
+    fun setKmaParallelEnabled(enabled: Boolean) {
+        set(KEY_KMA_PARALLEL_ENABLED, enabled.toString())
     }
 }

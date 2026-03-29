@@ -1,6 +1,7 @@
 package com.seriouschoi.aircheck.feature.admin
 
 import com.seriouschoi.aircheck.core.domain.model.ServiceVersion
+import com.seriouschoi.aircheck.core.service.ServiceConfigService
 import com.seriouschoi.aircheck.core.service.ServiceVersionService
 import com.seriouschoi.aircheck.core.service.port.ApiUsagePort
 import com.seriouschoi.aircheck.core.service.port.ApiUsageStats
@@ -16,6 +17,7 @@ import java.time.LocalDate
 class AdminController(
     private val apiUsagePort: ApiUsagePort,
     private val serviceVersionService: ServiceVersionService,
+    private val serviceConfigService: ServiceConfigService,
     @Value("\${admin.api-key}") private val adminApiKey: String
 ) {
     
@@ -138,6 +140,36 @@ class AdminController(
         )
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // App Check Management
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * App Check 상태 조회
+     */
+    @GetMapping("/appcheck/status")
+    fun getAppCheckStatus(
+        @RequestHeader("X-Admin-Key") apiKey: String?
+    ): AppCheckStatusResponse {
+        validateApiKey(apiKey)
+        return AppCheckStatusResponse(
+            enabled = serviceConfigService.isAppCheckEnabled()
+        )
+    }
+    
+    /**
+     * App Check 활성화/비활성화
+     */
+    @PostMapping("/appcheck/toggle")
+    fun toggleAppCheck(
+        @RequestHeader("X-Admin-Key") apiKey: String?,
+        @RequestBody request: AppCheckToggleRequest
+    ): AppCheckStatusResponse {
+        validateApiKey(apiKey)
+        serviceConfigService.setAppCheckEnabled(request.enabled)
+        return AppCheckStatusResponse(enabled = request.enabled)
+    }
+    
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,
@@ -146,6 +178,14 @@ class AdminController(
         )
     }
 }
+
+data class AppCheckStatusResponse(
+    val enabled: Boolean
+)
+
+data class AppCheckToggleRequest(
+    val enabled: Boolean
+)
 
 data class ServiceVersionRequest(
     val osType: String,

@@ -4,6 +4,7 @@ import com.auth0.jwk.JwkProviderBuilder
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.interfaces.DecodedJWT
+import com.seriouschoi.aircheck.core.domain.port.ServiceConfigPort
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -20,21 +21,21 @@ import java.util.concurrent.TimeUnit
  * 
  * - JWKS에서 공개키를 가져와 JWT 서명 검증
  * - issuer, audience, 만료시간 확인
- * - appcheck.enabled=true 일 때만 차단 모드
+ * - DB 설정 또는 환경변수로 활성화 제어
  */
 @Component
 class AppCheckFilter(
+    private val configPort: ServiceConfigPort,
     @Value("\${appcheck.enabled:false}")
-    private val enabled: Boolean,
+    private val enabledDefault: Boolean,
     @Value("\${firebase.project-id:}")
     private val projectId: String,
     @Value("\${firebase.project-number:}")
     private val projectNumber: String
 ) : OncePerRequestFilter() {
-
-    private val log = LoggerFactory.getLogger(javaClass)
-
+    
     companion object {
+        private const val CONFIG_KEY_APPCHECK_ENABLED = "appcheck_enabled"
         private const val HEADER_APP_CHECK = "X-Firebase-AppCheck"
         private const val JWKS_URL = "https://firebaseappcheck.googleapis.com/v1/jwks"
         private const val ISSUER_PREFIX = "https://firebaseappcheck.googleapis.com/"
@@ -46,6 +47,22 @@ class AppCheckFilter(
         )
     }
     
+    /**
+     * App Check 활성화 여부 (DB 우선, 없으면 환경변수)
+     */
+    private val isEnabled: Boolean
+        get() {
+            return try {
+                configPort.get(CONFIG_KEY_APPCHECK_ENABLED)
+                    ?.toBooleanStrictOrNull() ?: enabledDefault
+            } catch (e: Exception) {
+                log.warn("[AppCheck] DB 조회 실패, 기본값 사용: {}", enabledDefault)
+                enabledDefault
+            }
+        }
+
+    private val log = LoggerFactory.getLogger(javaClass)
+    
     // JWKS Provider (캐싱 + 자동 갱신)
     private val jwkProvider = JwkProviderBuilder(URL(JWKS_URL))
         .cached(10, 24, TimeUnit.HOURS)  // 최대 10개 키, 24시간 캐시
@@ -53,7 +70,7 @@ class AppCheckFilter(
         .build()
     
     init {
-        log.info("[AppCheck] 필터 초기화 (enabled={}, projectNumber={})", enabled, projectNumber)
+        log.info("[AppCheck] 필터 초기화 (defaultEnabled={}, projectNumber={})", enabledDefault, projectNumber)
     }
 
     override fun doFilterInternal(
@@ -73,7 +90,7 @@ class AppCheckFilter(
         
         if (token.isNullOrBlank()) {
             log.warn("[AppCheck] 토큰 없음: {} {}", request.method, path)
-            if (enabled) {
+            if (isEnabled) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "App Check token required")
                 return
             }
@@ -83,7 +100,7 @@ class AppCheckFilter(
                 log.debug("[AppCheck] 토큰 유효: {} {}", request.method, path)
             } else {
                 log.warn("[AppCheck] 토큰 무효: {} {}", request.method, path)
-                if (enabled) {
+                if (isEnabled) {
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid App Check token")
                     return
                 }

@@ -4,6 +4,9 @@ plugins {
 }
 
 dependencies {
+    // Internal modules
+    implementation(project(":core:domain"))
+    
     // Spring
     implementation("org.springframework:spring-context:6.2.4")
     implementation("org.springframework:spring-web:6.2.4")

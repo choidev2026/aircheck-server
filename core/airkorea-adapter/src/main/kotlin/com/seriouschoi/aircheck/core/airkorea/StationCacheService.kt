@@ -34,7 +34,7 @@ class StationCacheService(
      * 
      * @return 측정소명 → StationInfo 맵
      */
-    @Cacheable("stations")
+    @Cacheable("stations", unless = "#result.isEmpty()")
     fun loadStations(): Map<String, StationInfo> {
         log.info("측정소 정보 로드 시작 (API 호출)")
         

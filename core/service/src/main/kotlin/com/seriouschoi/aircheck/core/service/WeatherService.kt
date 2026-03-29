@@ -25,7 +25,7 @@ class WeatherService(
         return airQualityPort.getAirQuality(lat, lng)
     }
 
-    @Cacheable("combined", key = "#lat + ',' + #lng", unless = "#result.weather == null && #result.airQuality == null")
+    @Cacheable("combined", key = "#lat + ',' + #lng", unless = "#result.weather == null || #result.airQuality == null")
     override fun getCombined(lat: Double, lng: Double): CombinedWeatherResult {
         return CombinedWeatherResult(
             weather = weatherPort.getWeather(lat, lng),

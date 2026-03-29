@@ -12,9 +12,6 @@ import com.seriouschoi.aircheck.core.kma.dto.KmaApiResponse
 import com.seriouschoi.aircheck.core.kma.dto.MidLandFcstItem
 import com.seriouschoi.aircheck.core.kma.dto.MidTaItem
 import com.seriouschoi.aircheck.core.kma.dto.NcstItem
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
@@ -83,35 +80,28 @@ class KmaAdapter(
             val (baseDate, baseTime) = calculateBaseDateTime()
             val (vilageFcstDate, vilageFcstTime) = calculateVilageFcstBaseDateTime()
             
-            // 병렬 API 호출
-            runBlocking(Dispatchers.IO) {
-                val currentDeferred = async { fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime) }
-                val ultraShortDeferred = async { fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime) }
-                val vilageFcstDeferred = async { fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime) }
-                val midTermDeferred = async { fetchMidTermForecast() }
-                
-                val currentWeather = currentDeferred.await()
-                val ultraShortForecast = ultraShortDeferred.await()
-                val vilageFcstItems = vilageFcstDeferred.await()
-                val midTermForecast = midTermDeferred.await()
-                
-                // 단기예보 파싱
-                val dailyForecast = parseDailyForecast(vilageFcstItems)
-                val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
-                val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
-                
-                if (currentWeather == null) {
-                    logger.warn { "Failed to fetch current weather" }
-                    return@runBlocking null
-                }
-                
-                WeatherResponse(
-                    current = currentWeather,
-                    hourlyForecast = hourlyForecast,
-                    dailyForecast = dailyForecast,
-                    midTermForecast = midTermForecast
-                )
+            // 순차 API 호출 (Rate Limit 방지)
+            val currentWeather = fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime)
+            val ultraShortForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
+            val vilageFcstItems = fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
+            val midTermForecast = fetchMidTermForecast()
+            
+            // 단기예보 파싱
+            val dailyForecast = parseDailyForecast(vilageFcstItems)
+            val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
+            val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
+            
+            if (currentWeather == null) {
+                logger.warn { "Failed to fetch current weather" }
+                return null
             }
+            
+            WeatherResponse(
+                current = currentWeather,
+                hourlyForecast = hourlyForecast,
+                dailyForecast = dailyForecast,
+                midTermForecast = midTermForecast
+            )
         } catch (e: Exception) {
             logger.error(e) { "KMA API error: ${e.message}" }
             null

@@ -8,6 +8,7 @@ import com.seriouschoi.aircheck.core.domain.model.WeatherCondition
 import com.seriouschoi.aircheck.core.domain.model.WeatherResponse
 import com.seriouschoi.aircheck.core.domain.port.ServiceConfigPort
 import com.seriouschoi.aircheck.core.domain.port.WeatherPort
+import com.seriouschoi.aircheck.core.service.port.ApiUsagePort
 import com.seriouschoi.aircheck.core.kma.dto.FcstItem
 import com.seriouschoi.aircheck.core.kma.dto.KmaApiResponse
 import com.seriouschoi.aircheck.core.kma.dto.MidLandFcstItem
@@ -46,6 +47,7 @@ private val logger = KotlinLogging.logger {}
 class KmaAdapter(
     private val restTemplate: RestTemplate,
     private val configPort: ServiceConfigPort,
+    private val apiUsagePort: ApiUsagePort?,
     @Value("\${kma.api.key:}") private val apiKey: String,
     @Value("\${kma.api.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") 
     private val baseUrl: String,
@@ -58,6 +60,12 @@ class KmaAdapter(
         private const val ULTRA_SRT_FCST = "getUltraSrtFcst"  // 초단기예보
         private const val VILAGE_FCST = "getVilageFcst"       // 단기예보
         private const val MID_LAND_FCST = "getMidLandFcst"    // 중기육상예보
+        
+        // API 사용량 추적용 타입
+        private const val API_TYPE_NCST = "KMA_ULTRA_SRT_NCST"
+        private const val API_TYPE_FCST = "KMA_ULTRA_SRT_FCST"
+        private const val API_TYPE_VILAGE = "KMA_VILAGE_FCST"
+        private const val API_TYPE_MID = "KMA_MID_FCST"
         private const val MID_TA = "getMidTa"                 // 중기기온예보
         
         // 중기예보 지역코드 (서울/경기 기준, 추후 확장)
@@ -161,6 +169,7 @@ class KmaAdapter(
      */
     private fun fetchCurrentWeather(nx: Int, ny: Int, baseDate: String, baseTime: String): CurrentWeather? {
         val url = buildUrl(ULTRA_SRT_NCST, nx, ny, baseDate, baseTime)
+        val startTime = System.currentTimeMillis()
         
         return try {
             val response = restTemplate.getForObject(url, String::class.java) ?: return null
@@ -168,13 +177,17 @@ class KmaAdapter(
             
             if (parsed.response.header.resultCode != "00") {
                 logger.warn { "KMA API error: ${parsed.response.header.resultMsg}" }
+                apiUsagePort?.recordFailure(API_TYPE_NCST, parsed.response.header.resultMsg)
                 return null
             }
             
             val items = parsed.response.body?.items?.item ?: return null
-            parseCurrentWeather(items)
+            val result = parseCurrentWeather(items)
+            apiUsagePort?.recordSuccess(API_TYPE_NCST, System.currentTimeMillis() - startTime)
+            result
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch current weather: ${e.message}" }
+            apiUsagePort?.recordFailure(API_TYPE_NCST, e.message)
             null
         }
     }
@@ -184,6 +197,7 @@ class KmaAdapter(
      */
     private fun fetchHourlyForecast(nx: Int, ny: Int, baseDate: String, baseTime: String): List<HourlyForecast> {
         val url = buildUrl(ULTRA_SRT_FCST, nx, ny, baseDate, baseTime)
+        val startTime = System.currentTimeMillis()
         
         return try {
             val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
@@ -191,13 +205,17 @@ class KmaAdapter(
             
             if (parsed.response.header.resultCode != "00") {
                 logger.warn { "KMA API error: ${parsed.response.header.resultMsg}" }
+                apiUsagePort?.recordFailure(API_TYPE_FCST, parsed.response.header.resultMsg)
                 return emptyList()
             }
             
             val items = parsed.response.body?.items?.item ?: return emptyList()
-            parseHourlyForecast(items)
+            val result = parseHourlyForecast(items)
+            apiUsagePort?.recordSuccess(API_TYPE_FCST, System.currentTimeMillis() - startTime)
+            result
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch hourly forecast: ${e.message}" }
+            apiUsagePort?.recordFailure(API_TYPE_FCST, e.message)
             emptyList()
         }
     }
@@ -207,6 +225,7 @@ class KmaAdapter(
      */
     private fun fetchVilageFcstItems(nx: Int, ny: Int, baseDate: String, baseTime: String): List<FcstItem> {
         val url = buildUrl(VILAGE_FCST, nx, ny, baseDate, baseTime, numOfRows = 1000)
+        val startTime = System.currentTimeMillis()
         
         return try {
             val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
@@ -214,12 +233,16 @@ class KmaAdapter(
             
             if (parsed.response.header.resultCode != "00") {
                 logger.warn { "KMA API error: ${parsed.response.header.resultMsg}" }
+                apiUsagePort?.recordFailure(API_TYPE_VILAGE, parsed.response.header.resultMsg)
                 return emptyList()
             }
             
-            parsed.response.body?.items?.item ?: emptyList()
+            val result = parsed.response.body?.items?.item ?: emptyList()
+            apiUsagePort?.recordSuccess(API_TYPE_VILAGE, System.currentTimeMillis() - startTime)
+            result
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch vilage forecast: ${e.message}" }
+            apiUsagePort?.recordFailure(API_TYPE_VILAGE, e.message)
             emptyList()
         }
     }
@@ -229,6 +252,7 @@ class KmaAdapter(
      */
     private fun fetchMidTermForecast(): List<MidTermForecast> {
         val tmFc = calculateMidFcstTmFc()
+        val startTime = System.currentTimeMillis()
         
         return try {
             // 중기육상예보 (날씨)
@@ -248,24 +272,34 @@ class KmaAdapter(
             val landResponse = restTemplate.getForObject(landUrl, String::class.java)
             val taResponse = restTemplate.getForObject(taUrl, String::class.java)
             
-            if (landResponse == null || taResponse == null) return emptyList()
+            if (landResponse == null || taResponse == null) {
+                apiUsagePort?.recordFailure(API_TYPE_MID, "Response is null")
+                return emptyList()
+            }
             
             val landParsed = json.decodeFromString<KmaApiResponse<MidLandFcstItem>>(landResponse)
             val taParsed = json.decodeFromString<KmaApiResponse<MidTaItem>>(taResponse)
             
             if (landParsed.response.header.resultCode != "00" || 
                 taParsed.response.header.resultCode != "00") {
+                apiUsagePort?.recordFailure(API_TYPE_MID, "API error")
                 return emptyList()
             }
             
             val landItem = landParsed.response.body?.items?.item?.firstOrNull()
             val taItem = taParsed.response.body?.items?.item?.firstOrNull()
             
-            if (landItem == null || taItem == null) return emptyList()
+            if (landItem == null || taItem == null) {
+                apiUsagePort?.recordFailure(API_TYPE_MID, "No data")
+                return emptyList()
+            }
             
-            parseMidTermForecast(landItem, taItem)
+            val result = parseMidTermForecast(landItem, taItem)
+            apiUsagePort?.recordSuccess(API_TYPE_MID, System.currentTimeMillis() - startTime)
+            result
         } catch (e: Exception) {
             logger.error(e) { "Failed to fetch mid-term forecast: ${e.message}" }
+            apiUsagePort?.recordFailure(API_TYPE_MID, e.message)
             emptyList()
         }
     }

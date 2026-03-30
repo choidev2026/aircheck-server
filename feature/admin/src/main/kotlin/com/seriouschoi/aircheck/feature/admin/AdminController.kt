@@ -259,8 +259,11 @@ class AdminController(
     companion object {
         val API_LIMITS = mapOf(
             "OPEN_METEO" to 10_000L,
-            "AIR_KOREA" to 500L,
-            "KMA_ULTRA_SHORT" to 10_000L
+            "AIR_KOREA" to 10_000L,
+            "KMA_ULTRA_SRT_NCST" to 100_000L,
+            "KMA_ULTRA_SRT_FCST" to 100_000L,
+            "KMA_VILAGE_FCST" to 100_000L,
+            "KMA_MID_FCST" to 100_000L,
         )
     }
 }

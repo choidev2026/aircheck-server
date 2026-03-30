@@ -57,13 +57,13 @@ class KmaAdapter(
     
     companion object {
         private const val ULTRA_SRT_NCST = "getUltraSrtNcst"  // 초단기실황
-        private const val ULTRA_SRT_FCST = "getUltraSrtFcst"  // 초단기예보
+        // 초단기예보(getUltraSrtFcst) 제거됨 - POP 불일치 이슈 (#49)
         private const val VILAGE_FCST = "getVilageFcst"       // 단기예보
         private const val MID_LAND_FCST = "getMidLandFcst"    // 중기육상예보
         
         // API 사용량 추적용 타입
         private const val API_TYPE_NCST = "KMA_ULTRA_SRT_NCST"
-        private const val API_TYPE_FCST = "KMA_ULTRA_SRT_FCST"
+        // API_TYPE_FCST 제거됨 - 초단기예보 미사용
         private const val API_TYPE_VILAGE = "KMA_VILAGE_FCST"
         private const val API_TYPE_MID = "KMA_MID_FCST"
         private const val MID_TA = "getMidTa"                 // 중기기온예보
@@ -116,16 +116,14 @@ class KmaAdapter(
     ): WeatherResponse? {
         return runBlocking(Dispatchers.IO) {
             val currentDeferred = async { fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime) }
-            val ultraShortDeferred = async { fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime) }
             val vilageFcstDeferred = async { fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime) }
             val midTermDeferred = async { fetchMidTermForecast() }
             
             val currentWeather = currentDeferred.await()
-            val ultraShortForecast = ultraShortDeferred.await()
             val vilageFcstItems = vilageFcstDeferred.await()
             val midTermForecast = midTermDeferred.await()
             
-            buildWeatherResponse(currentWeather, ultraShortForecast, vilageFcstItems, midTermForecast)
+            buildWeatherResponse(currentWeather, vilageFcstItems, midTermForecast)
         }
     }
     
@@ -134,22 +132,19 @@ class KmaAdapter(
         vilageFcstDate: String, vilageFcstTime: String
     ): WeatherResponse? {
         val currentWeather = fetchCurrentWeather(grid.nx, grid.ny, baseDate, baseTime)
-        val ultraShortForecast = fetchHourlyForecast(grid.nx, grid.ny, baseDate, baseTime)
         val vilageFcstItems = fetchVilageFcstItems(grid.nx, grid.ny, vilageFcstDate, vilageFcstTime)
         val midTermForecast = fetchMidTermForecast()
         
-        return buildWeatherResponse(currentWeather, ultraShortForecast, vilageFcstItems, midTermForecast)
+        return buildWeatherResponse(currentWeather, vilageFcstItems, midTermForecast)
     }
     
     private fun buildWeatherResponse(
         currentWeather: CurrentWeather?,
-        ultraShortForecast: List<HourlyForecast>,
         vilageFcstItems: List<FcstItem>,
         midTermForecast: List<MidTermForecast>
     ): WeatherResponse? {
         val dailyForecast = parseDailyForecast(vilageFcstItems)
-        val extendedHourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
-        val hourlyForecast = combineHourlyForecasts(ultraShortForecast, extendedHourlyForecast)
+        val hourlyForecast = parseExtendedHourlyForecast(vilageFcstItems)
         
         if (currentWeather == null) {
             logger.warn { "Failed to fetch current weather" }
@@ -195,31 +190,6 @@ class KmaAdapter(
     /**
      * 초단기예보 조회
      */
-    private fun fetchHourlyForecast(nx: Int, ny: Int, baseDate: String, baseTime: String): List<HourlyForecast> {
-        val url = buildUrl(ULTRA_SRT_FCST, nx, ny, baseDate, baseTime)
-        val startTime = System.currentTimeMillis()
-        
-        return try {
-            val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
-            val parsed = json.decodeFromString<KmaApiResponse<FcstItem>>(response)
-            
-            if (parsed.response.header.resultCode != "00") {
-                logger.warn { "KMA API error: ${parsed.response.header.resultMsg}" }
-                apiUsagePort?.recordFailure(API_TYPE_FCST, parsed.response.header.resultMsg)
-                return emptyList()
-            }
-            
-            val items = parsed.response.body?.items?.item ?: return emptyList()
-            val result = parseHourlyForecast(items)
-            apiUsagePort?.recordSuccess(API_TYPE_FCST, System.currentTimeMillis() - startTime)
-            result
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to fetch hourly forecast: ${e.message}" }
-            apiUsagePort?.recordFailure(API_TYPE_FCST, e.message)
-            emptyList()
-        }
-    }
-    
     /**
      * 단기예보 원본 데이터 조회 (3일)
      */
@@ -441,61 +411,6 @@ class KmaAdapter(
     }
     
     /**
-     * 초단기예보 파싱
-     */
-    private fun parseHourlyForecast(items: List<FcstItem>): List<HourlyForecast> {
-        // 시간별로 그룹핑
-        val groupedByTime = items.groupBy { "${it.fcstDate}_${it.fcstTime}" }
-        
-        return groupedByTime.map { (timeKey, timeItems) ->
-            val fcstDate = timeKey.split("_")[0]
-            val fcstTime = timeKey.split("_")[1]
-            val hour = fcstTime.substring(0, 2).toInt()
-            
-            var temperature = 0.0
-            var sky = 1
-            var pty = 0
-            var pop = 0
-            var sno = 0.0
-            var windSpeed = 0.0
-            var humidity = 50
-            
-            timeItems.forEach { item ->
-                when (item.category) {
-                    "T1H" -> temperature = item.fcstValue.toDoubleOrNull() ?: 0.0
-                    "SKY" -> sky = item.fcstValue.toIntOrNull() ?: 1
-                    "PTY" -> pty = item.fcstValue.toIntOrNull() ?: 0
-                    "POP" -> pop = item.fcstValue.toIntOrNull() ?: 0
-                    "SNO" -> sno = item.fcstValue.toDoubleOrNull() ?: 0.0
-                    "WSD" -> windSpeed = item.fcstValue.toDoubleOrNull() ?: 0.0
-                    "REH" -> humidity = item.fcstValue.toIntOrNull() ?: 50
-                }
-            }
-            
-            val weatherCondition = convertToWeatherCondition(pty, sky)
-            val feelsLike = calculateFeelsLike(temperature, windSpeed, humidity)
-            
-            val kstDateTime = LocalDateTime.parse(
-                "${fcstDate}${fcstTime}",
-                DateTimeFormatter.ofPattern("yyyyMMddHHmm")
-            )
-            // KST → UTC 변환
-            val utcInstant = kstDateTime.atZone(KST).toInstant()
-            
-            HourlyForecast(
-                time = utcInstant,
-                hour = hour,  // KST 시간 유지 (표시용)
-                temperature = temperature,
-                feelsLike = feelsLike,
-                precipitationProbability = pop,
-                snowfall = sno,
-                weatherCode = pty * 10 + sky,
-                weatherCondition = weatherCondition
-            )
-        }.sortedBy { it.time }.take(6)
-    }
-    
-    /**
      * 단기예보에서 48시간 시간별 예보 파싱
      */
     private fun parseExtendedHourlyForecast(items: List<FcstItem>): List<HourlyForecast> {
@@ -550,35 +465,6 @@ class KmaAdapter(
                 weatherCondition = weatherCondition
             )
         }.sortedBy { it.time }.take(48)
-    }
-    
-    /**
-     * 초단기예보와 단기예보 시간별 데이터 결합
-     * - 초단기예보: 6시간 (더 정확)
-     * - 단기예보: 7~48시간
-     * - 현재 시간 이후만 포함
-     */
-    private fun combineHourlyForecasts(
-        ultraShort: List<HourlyForecast>,
-        extended: List<HourlyForecast>
-    ): List<HourlyForecast> {
-        // 현재 시간 (UTC) - 분/초 절삭
-        val nowUtc = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        
-        // 현재 시간 이후만 필터링
-        val filteredUltraShort = ultraShort.filter { it.time >= nowUtc }
-        val filteredExtended = extended.filter { it.time >= nowUtc }
-        
-        if (filteredUltraShort.isEmpty()) return filteredExtended.take(48)
-        if (filteredExtended.isEmpty()) return filteredUltraShort.take(48)
-        
-        // 초단기예보의 시간들
-        val ultraShortTimes = filteredUltraShort.map { it.time }.toSet()
-        
-        // 중복되지 않는 단기예보만 추가
-        val additionalHours = filteredExtended.filter { it.time !in ultraShortTimes }
-        
-        return (filteredUltraShort + additionalHours).sortedBy { it.time }.take(48)
     }
     
     /**

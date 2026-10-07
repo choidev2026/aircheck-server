@@ -8,8 +8,8 @@ spring:
   # Database
   datasource:
     url: jdbc:mariadb://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:aircheck}
-    username: ${DB_USER:aircheck}
-    password: ${DB_PASSWORD:aircheck}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.mariadb.jdbc.Driver
     
   jpa:

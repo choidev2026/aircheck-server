@@ -48,7 +48,20 @@ jobs:
           scp -i ~/.ssh/lightsail.pem \
             app/build/libs/app-0.0.1-SNAPSHOT.jar \
             ec2-user@${{ secrets.LIGHTSAIL_HOST }}:/opt/aircheck/app.jar
-      
+
+      # 6.5. 환경변수 파일 갱신 (DB 계정정보는 GitHub Secrets에서 관리)
+      - name: Update environment file
+        run: |
+          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} \
+            "cat <<'ENVEOF' | sudo tee /opt/aircheck/aircheck.env > /dev/null
+          DB_HOST=localhost
+          DB_PORT=3306
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          ENVEOF
+          sudo chmod 600 /opt/aircheck/aircheck.env"
+
       # 7. 서비스 재시작
       - name: Restart Service
         run: |

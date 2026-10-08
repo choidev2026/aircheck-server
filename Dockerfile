@@ -2,6 +2,8 @@
 FROM gradle:8.12-jdk17 AS build
 WORKDIR /app
 COPY . .
+# --no-daemon: Gradle 데몬은 다음 빌드에서 재사용하려고 띄워두는 건데,
+# Docker 빌드는 이 컨테이너가 끝나면 그 안 상태가 통째로 버려지는 일회성이라 의미가 없음
 RUN gradle :app:bootJar -x test --no-daemon
 
 # Run stage

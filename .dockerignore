@@ -4,4 +4,6 @@
 build
 .idea
 *.md
+
+# 백엔드와 무관한 별도 React 프로젝트(node_modules 포함) - 별도 레포로 분리 예정 (#55)
 admin

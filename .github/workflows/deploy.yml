@@ -46,7 +46,7 @@ jobs:
       - name: Upload JAR
         run: |
           scp -i ~/.ssh/lightsail.pem \
-            app/build/libs/app-0.0.1-SNAPSHOT.jar \
+            app/build/libs/app.jar \
             ec2-user@${{ secrets.LIGHTSAIL_HOST }}:/opt/aircheck/app.jar
 
       # 6.5. 환경변수 파일 갱신 (DB 계정정보는 GitHub Secrets에서 관리)

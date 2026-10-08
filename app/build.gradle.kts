@@ -41,4 +41,6 @@ dependencies {
 
 tasks.getByName<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     mainClass.set("com.seriouschoi.aircheck.AircheckServerApplicationKt")
+    // 버전(allprojects의 version)이 바뀌어도 파일명이 안 바뀌게 고정 - deploy.yml/Dockerfile이 이 경로를 참조함
+    archiveFileName.set("app.jar")
 }

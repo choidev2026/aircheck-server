@@ -1,7 +1,9 @@
 .git
 .gitignore
-.gradle
-build
+# .dockerignore는 .gitignore와 달리 bare 패턴이 하위 디렉토리까지 자동으로
+# 안 걸림 - **/ 를 붙여야 core/*/build, feature/*/build 같은 중첩 경로도 제외됨
+**/.gradle
+**/build
 .idea
 *.md
 

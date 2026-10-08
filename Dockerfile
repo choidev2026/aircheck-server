@@ -14,7 +14,7 @@ WORKDIR /app
 RUN groupadd --system spring && useradd --system --gid spring spring
 USER spring:spring
 
-COPY --from=build /app/app/build/libs/app-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /app/app/build/libs/app.jar app.jar
 
 EXPOSE 8080
 

@@ -1,10 +1,10 @@
-.git
-.gitignore
 # .dockerignore는 .gitignore와 달리 bare 패턴이 하위 디렉토리까지 자동으로
 # 안 걸림 - **/ 를 붙여야 core/*/build, feature/*/build 같은 중첩 경로도 제외됨
+**/.git
+**/.gitignore
 **/.gradle
 **/build
-.idea
+**/.idea
 *.md
 
 # 백엔드와 무관한 별도 React 프로젝트(node_modules 포함) - 별도 레포로 분리 예정 (#55)

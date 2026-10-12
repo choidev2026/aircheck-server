@@ -21,6 +21,9 @@ services:
       - JAVA_TOOL_OPTIONS=-Xmx256m
     ports:
       - "8080:8080"
+    volumes:
+      # Firebase 서비스 계정 키 - 호스트 파일을 그대로 바인드 마운트 (이미지에는 안 들어있음)
+      - /opt/aircheck/firebase-key.json:/opt/aircheck/firebase-key.json:ro
     depends_on:
       db:
         condition: service_healthy

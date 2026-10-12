@@ -49,7 +49,20 @@ jobs:
           chmod 600 ~/.ssh/lightsail.pem
           ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
 
-      # 6. 환경변수 파일 갱신 (API 키 등은 GitHub Secrets에서 관리)
+      # 6. Firebase 서비스 계정 키 갱신
+      # JSON 안에 "가 많아서 ssh 명령 문자열에 바로 못 끼워넣음(바깥 "..."가 깨짐) ->
+      # 로컬 파일로 먼저 쓰고(따옴표 처리 안전한 heredoc) scp로 올림
+      - name: Write Firebase key
+        run: |
+          cat <<'FBEOF' > /tmp/firebase-key.json
+          ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FBEOF
+      - name: Upload Firebase key
+        run: |
+          scp -i ~/.ssh/lightsail.pem /tmp/firebase-key.json ec2-user@${{ secrets.LIGHTSAIL_HOST }}:/opt/aircheck/firebase-key.json
+          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "sudo chmod 600 /opt/aircheck/firebase-key.json"
+
+      # 7. 환경변수 파일 갱신 (API 키 등은 GitHub Secrets에서 관리)
       # DB_HOST=db - 앱도 이제 컨테이너라 compose 내부망의 서비스 이름으로 접근
       - name: Update environment file
         run: |
@@ -68,7 +81,7 @@ jobs:
           ENVEOF
           sudo chmod 600 /opt/aircheck/aircheck.env"
 
-      # 7. 새 이미지로 컨테이너 교체 (app만 pull - db는 매번 갈아탈 필요 없음)
+      # 8. 새 이미지로 컨테이너 교체 (app만 pull - db는 매번 갈아탈 필요 없음)
       - name: Deploy with Docker Compose
         run: |
           ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} \
@@ -76,10 +89,10 @@ jobs:
              docker compose --env-file aircheck.env -f docker-compose.prod.yml pull app && \
              docker compose --env-file aircheck.env -f docker-compose.prod.yml up -d"
 
-      # 8. 헬스 체크 (앱 시작에 ~20초 소요)
+      # 9. 헬스 체크 (컨테이너 기동 실측 ~55초 - JAR 직접 실행보다 오래 걸림)
       - name: Health Check
         run: |
           echo "Waiting for app to start..."
-          sleep 30
+          sleep 60
           curl -f http://${{ secrets.LIGHTSAIL_HOST }}:8080/actuator/health || exit 1
           echo "✅ Deploy successful!"

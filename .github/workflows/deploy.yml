@@ -41,13 +41,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 5. SSH 키 설정
+      # 5. SSH 키 설정 + config에 별칭 등록 (이후 스텝에서 `ssh lightsail`로 짧게 사용)
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/lightsail.pem
           chmod 600 ~/.ssh/lightsail.pem
           ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
+          cat <<EOF >> ~/.ssh/config
+          Host lightsail
+              HostName ${{ secrets.LIGHTSAIL_HOST }}
+              User ec2-user
+              IdentityFile ~/.ssh/lightsail.pem
+          EOF
 
       # 6. Firebase 서비스 계정 키 갱신
       # JSON 안에 "가 많아서 ssh 명령 문자열에 바로 못 끼워넣음(바깥 "..."가 깨짐) ->
@@ -59,16 +65,16 @@ jobs:
           FBEOF
       - name: Upload Firebase key
         run: |
-          scp -i ~/.ssh/lightsail.pem /tmp/firebase-key.json ec2-user@${{ secrets.LIGHTSAIL_HOST }}:/opt/aircheck/firebase-key.json
+          scp /tmp/firebase-key.json lightsail:/opt/aircheck/firebase-key.json
           # 644인 이유: 컨테이너는 non-root(spring) 유저로 도는데, 바인드 마운트는 호스트 파일
           # 권한을 그대로 적용받음 - 600이면 ec2-user만 읽을 수 있어서 컨테이너 안에선 Permission denied
-          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "sudo chmod 644 /opt/aircheck/firebase-key.json"
+          ssh lightsail "sudo chmod 644 /opt/aircheck/firebase-key.json"
 
       # 7. 환경변수 파일 갱신 (API 키 등은 GitHub Secrets에서 관리)
       # DB_HOST=db - 앱도 이제 컨테이너라 compose 내부망의 서비스 이름으로 접근
       - name: Update environment file
         run: |
-          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} \
+          ssh lightsail \
             "cat <<'ENVEOF' | sudo tee /opt/aircheck/aircheck.env > /dev/null
           DB_HOST=db
           DB_PORT=3306
@@ -86,7 +92,7 @@ jobs:
       # 8. 새 이미지로 컨테이너 교체 (app만 pull - db는 매번 갈아탈 필요 없음)
       - name: Deploy with Docker Compose
         run: |
-          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} \
+          ssh lightsail \
             "cd /opt/aircheck && \
              docker compose --env-file aircheck.env -f docker-compose.prod.yml pull app && \
              docker compose --env-file aircheck.env -f docker-compose.prod.yml up -d"
@@ -106,4 +112,4 @@ jobs:
       # 진짜 롤백 필요하면 ghcr.io에 커밋 SHA 태그로 남아있어서 거기서 다시 pull하면 됨.
       - name: Clean up old images
         run: |
-          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "docker image prune -f"
+          ssh lightsail "docker image prune -f"

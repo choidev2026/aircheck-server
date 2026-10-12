@@ -98,3 +98,12 @@ jobs:
           sleep 60
           curl -f http://${{ secrets.LIGHTSAIL_HOST }}:8080/actuator/health || exit 1
           echo "✅ Deploy successful!"
+
+      # 10. 안 쓰는 이미지 정리 (#52 7단계)
+      # docker-compose.prod.yml이 app을 :latest로만 참조해서, 배포마다 옛 버전이
+      # <none> 태그로 남음 - 지금 쓰는 이미지(태그 있음, 컨테이너가 참조 중)는
+      # prune 대상이 아니라서 안전하게 "마지막 버전만 남기고 정리"가 됨.
+      # 진짜 롤백 필요하면 ghcr.io에 커밋 SHA 태그로 남아있어서 거기서 다시 pull하면 됨.
+      - name: Clean up old images
+        run: |
+          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "docker image prune -f"

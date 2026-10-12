@@ -60,7 +60,9 @@ jobs:
       - name: Upload Firebase key
         run: |
           scp -i ~/.ssh/lightsail.pem /tmp/firebase-key.json ec2-user@${{ secrets.LIGHTSAIL_HOST }}:/opt/aircheck/firebase-key.json
-          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "sudo chmod 600 /opt/aircheck/firebase-key.json"
+          # 644인 이유: 컨테이너는 non-root(spring) 유저로 도는데, 바인드 마운트는 호스트 파일
+          # 권한을 그대로 적용받음 - 600이면 ec2-user만 읽을 수 있어서 컨테이너 안에선 Permission denied
+          ssh -i ~/.ssh/lightsail.pem ec2-user@${{ secrets.LIGHTSAIL_HOST }} "sudo chmod 644 /opt/aircheck/firebase-key.json"
 
       # 7. 환경변수 파일 갱신 (API 키 등은 GitHub Secrets에서 관리)
       # DB_HOST=db - 앱도 이제 컨테이너라 compose 내부망의 서비스 이름으로 접근

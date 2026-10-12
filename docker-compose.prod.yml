@@ -1,0 +1,52 @@
+# 운영 서버(Lightsail)에서 사용하는 compose 파일 — #52
+# 로컬 개발용 docker-compose.yml과 분리한 이유: 로컬은 build: .로 직접 빌드하지만
+# 운영은 ghcr.io에서 미리 빌드된 이미지를 pull해서 쓰고, 계정정보도 실제 값을 써야 해서 둘을 하나의 파일로
+# 합치면 조건 분기가 생겨 오히려 더 헷갈림.
+#
+# 실행 방법 (서버에서):
+#   docker compose --env-file /opt/aircheck/aircheck.env -f docker-compose.prod.yml up -d
+#
+# /opt/aircheck/aircheck.env 하나의 파일이 두 가지 역할을 겸함:
+#   1. app 컨테이너에 주입되는 런타임 환경변수 (env_file:)
+#   2. 이 파일 안에서 ${DB_NAME} 같은 치환에 쓰이는 값 (--env-file)
+services:
+  app:
+    image: ghcr.io/choidev2026/aircheck-server:latest
+    container_name: aircheck-app
+    env_file:
+      - /opt/aircheck/aircheck.env
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # 기존 systemd 유닛의 -Xmx256m과 동일 — 서버 메모리가 작아서 JVM 힙 상한을 반드시 걸어야 함
+      - JAVA_TOOL_OPTIONS=-Xmx256m
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    container_name: aircheck-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    # 127.0.0.1에만 바인딩 - 외부 노출은 아니고, 과도기(#52 4단계: 앱은 아직 systemd+JAR로 호스트에서
+    # 직접 실행 중이라 localhost:3306으로 접근해야 함)와 호스트에서 DB 클라이언트로 점검할 때를 위한 것.
+    # 앱까지 컨테이너로 옮기면(5~6단계) app 컨테이너는 이 포트 없이도 내부망의 db:3306으로 붙을 수 있음.
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:

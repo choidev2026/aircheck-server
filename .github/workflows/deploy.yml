@@ -62,6 +62,7 @@ jobs:
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
           ENVEOF
           sudo chmod 600 /opt/aircheck/aircheck.env"
 

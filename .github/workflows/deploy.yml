@@ -89,7 +89,14 @@ jobs:
           ENVEOF
           sudo chmod 600 /opt/aircheck/aircheck.env"
 
-      # 8. 새 이미지로 컨테이너 교체 (app만 pull - db는 매번 갈아탈 필요 없음)
+      # 8. docker-compose.prod.yml 동기화
+      # 이게 빠져있으면 레포에서 이 파일을 수정해도 서버엔 반영이 안 됨 -
+      # 실제로 이 문제로 Firebase 바인드 마운트가 적용 안 됐던 적이 있어서 추가함
+      - name: Upload docker-compose.prod.yml
+        run: |
+          scp docker-compose.prod.yml lightsail:/opt/aircheck/docker-compose.prod.yml
+
+      # 9. 새 이미지로 컨테이너 교체 (app만 pull - db는 매번 갈아탈 필요 없음)
       - name: Deploy with Docker Compose
         run: |
           ssh lightsail \
@@ -97,7 +104,7 @@ jobs:
              docker compose --env-file aircheck.env -f docker-compose.prod.yml pull app && \
              docker compose --env-file aircheck.env -f docker-compose.prod.yml up -d"
 
-      # 9. 헬스 체크 (컨테이너 기동 실측 ~55초 - JAR 직접 실행보다 오래 걸림)
+      # 10. 헬스 체크 (컨테이너 기동 실측 ~55초 - JAR 직접 실행보다 오래 걸림)
       - name: Health Check
         run: |
           echo "Waiting for app to start..."
@@ -105,7 +112,7 @@ jobs:
           curl -f http://${{ secrets.LIGHTSAIL_HOST }}:8080/actuator/health || exit 1
           echo "✅ Deploy successful!"
 
-      # 10. 안 쓰는 이미지 정리 (#52 7단계)
+      # 11. 안 쓰는 이미지 정리 (#52 7단계)
       # docker-compose.prod.yml이 app을 :latest로만 참조해서, 배포마다 옛 버전이
       # <none> 태그로 남음 - 지금 쓰는 이미지(태그 있음, 컨테이너가 참조 중)는
       # prune 대상이 아니라서 안전하게 "마지막 버전만 남기고 정리"가 됨.

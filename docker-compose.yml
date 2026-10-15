@@ -18,6 +18,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # 로컬 개발 시 DB만 실행: docker compose up db -d
   db:
     image: mariadb:11
     environment:

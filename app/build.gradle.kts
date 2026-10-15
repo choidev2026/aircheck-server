@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     kotlin("jvm")
     kotlin("plugin.spring")
     id("org.springframework.boot")
+}
+
+// local.properties → bootRun 환경변수
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    environment(localProps.entries.associate { (k, v) -> k.toString() to v.toString() })
 }
 
 dependencies {

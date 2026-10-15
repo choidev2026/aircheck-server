@@ -88,6 +88,7 @@ jobs:
           ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
           APPCHECK_ENABLED=true
           ENVEOF
+          sudo chown ec2-user:ec2-user /opt/aircheck/aircheck.env && \
           sudo chmod 600 /opt/aircheck/aircheck.env"
 
       # 8. docker-compose.prod.yml 동기화

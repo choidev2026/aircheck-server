@@ -18,7 +18,7 @@ on:
       appcheck_enabled:
         description: 'App Check 활성화 여부'
         required: true
-        type: string
+        type: boolean
 
 jobs:
   deploy:

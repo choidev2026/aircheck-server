@@ -12,5 +12,5 @@ jobs:
       environment: dev
       image_tag: dev
       compose_file: docker-compose.dev.yml
-      appcheck_enabled: "false"
+      appcheck_enabled: false
     secrets: inherit

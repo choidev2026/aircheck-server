@@ -12,5 +12,5 @@ jobs:
       environment: prod
       image_tag: latest
       compose_file: docker-compose.prod.yml
-      appcheck_enabled: "true"
+      appcheck_enabled: true
     secrets: inherit

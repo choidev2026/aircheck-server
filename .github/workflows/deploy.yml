@@ -3,11 +3,12 @@ name: Deploy to Lightsail
 # main 브랜치에 푸시될 때 실행
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: prod
     permissions:
       contents: read
       packages: write

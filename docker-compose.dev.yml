@@ -1,0 +1,48 @@
+# dev 서버(Lightsail dev)에서 사용하는 compose 파일 — #68
+# prod와 다른 점:
+#   - 이미지 태그: :dev (prod는 :latest)
+#   - SPRING_PROFILES_ACTIVE=dev
+#   - APPCHECK_ENABLED=false (App Check는 prod에서만 강제)
+#   - JAVA_TOOL_OPTIONS: prod와 동일하게 메모리 제한
+#
+# 실행 방법 (서버에서):
+#   docker compose --env-file /opt/aircheck/aircheck.env -f docker-compose.dev.yml up -d
+services:
+  app:
+    image: ghcr.io/choidev2026/aircheck-server:dev
+    container_name: aircheck-app
+    env_file:
+      - /opt/aircheck/aircheck.env
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - JAVA_TOOL_OPTIONS=-Xmx256m
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/aircheck/firebase-key.json:/opt/aircheck/firebase-key.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    container_name: aircheck-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:

@@ -95,7 +95,8 @@ jobs:
       - name: Deploy with Docker Compose
         run: |
           ssh lightsail \
-            "cd /opt/aircheck && \
+            "echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin && \
+             cd /opt/aircheck && \
              docker compose --env-file aircheck.env -f docker-compose.dev.yml pull app && \
              docker compose --env-file aircheck.env -f docker-compose.dev.yml up -d"
 

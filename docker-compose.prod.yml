@@ -11,7 +11,7 @@
 #   2. 이 파일 안에서 ${DB_NAME} 같은 치환에 쓰이는 값 (--env-file)
 services:
   app:
-    image: ghcr.io/choidev2026/aircheck-server:latest
+    image: ghcr.io/devchoi-lab/aircheck-server:latest
     container_name: aircheck-app
     env_file:
       - /opt/aircheck/aircheck.env

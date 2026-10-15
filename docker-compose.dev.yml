@@ -9,7 +9,7 @@
 #   docker compose --env-file /opt/aircheck/aircheck.env -f docker-compose.dev.yml up -d
 services:
   app:
-    image: ghcr.io/choidev2026/aircheck-server:dev
+    image: ghcr.io/devchoi-lab/aircheck-server:dev
     container_name: aircheck-app
     env_file:
       - /opt/aircheck/aircheck.env

@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   deploy:
     uses: ./.github/workflows/deploy-common.yml

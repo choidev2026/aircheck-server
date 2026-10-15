@@ -27,3 +27,6 @@ Thumbs.db
 # Spring
 *.log
 application-local.yml
+
+# Local
+local.properties

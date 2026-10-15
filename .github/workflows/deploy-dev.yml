@@ -1,0 +1,112 @@
+name: Deploy to Dev
+
+# main 브랜치에 푸시될 때 자동 실행 (prod는 수동 배포)
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev  # GitHub Environments - dev 시크릿 사용
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Docker Buildx 설정
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. ghcr.io 로그인
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Docker 이미지 빌드 + 푸시 (:dev 태그)
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/choidev2026/aircheck-server:dev
+            ghcr.io/choidev2026/aircheck-server:dev-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 5. SSH 키 설정
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
+          cat <<EOF >> ~/.ssh/config
+          Host lightsail
+              HostName ${{ secrets.LIGHTSAIL_HOST }}
+              User ec2-user
+              IdentityFile ~/.ssh/lightsail.pem
+          EOF
+
+      # 6. Firebase 서비스 계정 키 갱신
+      - name: Write Firebase key
+        run: |
+          cat <<'FBEOF' > /tmp/firebase-key.json
+          ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FBEOF
+      - name: Upload Firebase key
+        run: |
+          scp /tmp/firebase-key.json lightsail:/opt/aircheck/firebase-key.json
+          ssh lightsail "sudo chmod 644 /opt/aircheck/firebase-key.json"
+
+      # 7. 환경변수 파일 갱신
+      - name: Update environment file
+        run: |
+          ssh lightsail \
+            "cat <<'ENVEOF' | sudo tee /opt/aircheck/aircheck.env > /dev/null
+          DB_HOST=db
+          DB_PORT=3306
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+          AIRKOREA_API_KEY=${{ secrets.AIRKOREA_API_KEY }}
+          WEATHER_PROVIDER=kma
+          ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
+          APPCHECK_ENABLED=false
+          ENVEOF
+          sudo chmod 600 /opt/aircheck/aircheck.env"
+
+      # 8. docker-compose.dev.yml 동기화
+      - name: Upload docker-compose.dev.yml
+        run: |
+          scp docker-compose.dev.yml lightsail:/opt/aircheck/docker-compose.dev.yml
+
+      # 9. 새 이미지로 컨테이너 교체
+      - name: Deploy with Docker Compose
+        run: |
+          ssh lightsail \
+            "cd /opt/aircheck && \
+             docker compose --env-file aircheck.env -f docker-compose.dev.yml pull app && \
+             docker compose --env-file aircheck.env -f docker-compose.dev.yml up -d"
+
+      # 10. 헬스 체크
+      - name: Health Check
+        run: |
+          echo "Waiting for app to start..."
+          sleep 60
+          curl -f http://${{ secrets.LIGHTSAIL_HOST }}:8080/actuator/health || exit 1
+          echo "Deploy to dev successful!"
+
+      # 11. 안 쓰는 이미지 정리
+      - name: Clean up old images
+        run: |
+          ssh lightsail "docker image prune -f"

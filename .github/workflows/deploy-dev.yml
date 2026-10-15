@@ -7,11 +7,29 @@ on:
 
 jobs:
   deploy:
+    runs-on: ubuntu-latest
     environment: dev
-    uses: ./.github/workflows/deploy-common.yml
-    with:
-      environment: dev
-      image_tag: dev
-      compose_file: docker-compose.dev.yml
-      appcheck_enabled: "false"
-    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        uses: ./.github/actions/deploy
+        with:
+          image_tag: dev
+          compose_file: docker-compose.dev.yml
+          appcheck_enabled: "false"
+          lightsail_ssh_key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          lightsail_host: ${{ secrets.LIGHTSAIL_HOST }}
+          firebase_service_account_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          db_name: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          db_password: ${{ secrets.DB_PASSWORD }}
+          db_root_password: ${{ secrets.DB_ROOT_PASSWORD }}
+          airkorea_api_key: ${{ secrets.AIRKOREA_API_KEY }}
+          admin_api_key: ${{ secrets.ADMIN_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

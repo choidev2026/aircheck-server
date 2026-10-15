@@ -7,7 +7,6 @@ on:
 
 jobs:
   deploy:
-    environment: prod
     uses: ./.github/workflows/deploy-common.yml
     with:
       environment: prod

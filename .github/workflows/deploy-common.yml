@@ -98,6 +98,8 @@ jobs:
           WEATHER_PROVIDER=kma
           ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY }}
           APPCHECK_ENABLED=${{ inputs.appcheck_enabled }}
+          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_PROJECT_NUMBER=${{ secrets.FIREBASE_PROJECT_NUMBER }}
           ENVEOF
           sudo chown ec2-user:ec2-user /opt/aircheck/aircheck.env && \
           sudo chmod 600 /opt/aircheck/aircheck.env"

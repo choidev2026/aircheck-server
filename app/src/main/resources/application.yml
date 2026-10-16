@@ -31,14 +31,18 @@ spring:
 weather:
   provider: ${WEATHER_PROVIDER:openmeteo}  # openmeteo 또는 kma
 
-# 에어코리아 API 키
+# 에어코리아 API
 airkorea:
   api-key: ${AIRKOREA_API_KEY:your-api-key-here}
+  base-url: https://apis.data.go.kr/B552584/ArpltnInforInqireSvc
+  station-url: https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc
 
 # 기상청 API (공공데이터포털 - 에어코리아와 동일 키)
 kma:
   api:
     key: ${AIRKOREA_API_KEY:}
+    base-url: http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0
+    mid-url: http://apis.data.go.kr/1360000/MidFcstInfoService
 
 # Firebase
 firebase:

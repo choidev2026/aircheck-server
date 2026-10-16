@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class StationCacheService(
-    @Value("\${airkorea.api-key}") private val apiKey: String
+    @Value("\${airkorea.api-key}") private val apiKey: String,
+    @Value("\${airkorea.station-url}") private val stationUrl: String
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     
@@ -39,7 +40,7 @@ class StationCacheService(
         log.info("측정소 정보 로드 시작 (API 호출)")
         
         return try {
-            val url = "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstnList" +
+            val url = "$stationUrl/getMsrstnList" +
                     "?pageNo=1&numOfRows=700&returnType=json" +
                     "&serviceKey=${URLEncoder.encode(apiKey, "UTF-8")}" +
                     "&ver=1.1"

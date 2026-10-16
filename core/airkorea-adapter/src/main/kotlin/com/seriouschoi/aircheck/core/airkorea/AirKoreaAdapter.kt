@@ -52,6 +52,7 @@ data class AirKoreaItem(
 @Component
 class AirKoreaAdapter(
     @Value("\${airkorea.api-key}") private val apiKey: String,
+    @Value("\${airkorea.base-url}") private val baseUrl: String,
     private val apiUsagePort: com.seriouschoi.aircheck.core.service.port.ApiUsagePort?,
     private val stationCacheService: StationCacheService
 ) : AirQualityPort {
@@ -165,7 +166,7 @@ class AirKoreaAdapter(
      * 측정소에서 원시 데이터 조회 (AirKoreaItem 반환)
      */
     private fun fetchRawData(stationName: String): AirKoreaItem? {
-        val url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty" +
+        val url = "$baseUrl/getMsrstnAcctoRltmMesureDnsty" +
                 "?stationName=${URLEncoder.encode(stationName, "UTF-8")}" +
                 "&dataTerm=DAILY&pageNo=1&numOfRows=1&returnType=json" +
                 "&serviceKey=${URLEncoder.encode(apiKey, "UTF-8")}" +

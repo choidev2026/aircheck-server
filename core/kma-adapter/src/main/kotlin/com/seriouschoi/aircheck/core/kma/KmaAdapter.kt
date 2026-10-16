@@ -23,8 +23,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestTemplate
-import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -45,29 +43,19 @@ private val logger = KotlinLogging.logger {}
 @Component
 @ConditionalOnProperty(name = ["weather.provider"], havingValue = "kma")
 class KmaAdapter(
-    private val restTemplate: RestTemplate,
     private val configPort: ServiceConfigPort,
     private val apiUsagePort: ApiUsagePort?,
     @Value("\${kma.api.key:}") private val apiKey: String,
-    @Value("\${kma.api.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") 
-    private val baseUrl: String,
-    @Value("\${kma.api.mid-url:http://apis.data.go.kr/1360000/MidFcstInfoService}") 
-    private val midBaseUrl: String
+    private val kmaApi: KmaApi,
+    private val kmaMidApi: KmaMidApi
 ) : WeatherPort {
-    
+
     companion object {
-        private const val ULTRA_SRT_NCST = "getUltraSrtNcst"  // 초단기실황
-        // 초단기예보(getUltraSrtFcst) 제거됨 - POP 불일치 이슈 (#49)
-        private const val VILAGE_FCST = "getVilageFcst"       // 단기예보
-        private const val MID_LAND_FCST = "getMidLandFcst"    // 중기육상예보
-        
         // API 사용량 추적용 타입
         private const val API_TYPE_NCST = "KMA_ULTRA_SRT_NCST"
-        // API_TYPE_FCST 제거됨 - 초단기예보 미사용
         private const val API_TYPE_VILAGE = "KMA_VILAGE_FCST"
         private const val API_TYPE_MID = "KMA_MID_FCST"
-        private const val MID_TA = "getMidTa"                 // 중기기온예보
-        
+
         // 중기예보 지역코드 (서울/경기 기준, 추후 확장)
         private const val DEFAULT_REG_ID = "11B00000"  // 서울/인천/경기
         private const val DEFAULT_TA_REG_ID = "11B10101"  // 서울
@@ -163,11 +151,19 @@ class KmaAdapter(
      * 초단기실황 조회
      */
     private fun fetchCurrentWeather(nx: Int, ny: Int, baseDate: String, baseTime: String): CurrentWeather? {
-        val url = buildUrl(ULTRA_SRT_NCST, nx, ny, baseDate, baseTime)
         val startTime = System.currentTimeMillis()
-        
+
         return try {
-            val response = restTemplate.getForObject(url, String::class.java) ?: return null
+            val response = kmaApi.getUltraSrtNcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 60,
+                dataType = "JSON",
+                baseDate = baseDate,
+                baseTime = baseTime,
+                nx = nx,
+                ny = ny
+            )
             val parsed = json.decodeFromString<KmaApiResponse<NcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -194,11 +190,19 @@ class KmaAdapter(
      * 단기예보 원본 데이터 조회 (3일)
      */
     private fun fetchVilageFcstItems(nx: Int, ny: Int, baseDate: String, baseTime: String): List<FcstItem> {
-        val url = buildUrl(VILAGE_FCST, nx, ny, baseDate, baseTime, numOfRows = 1000)
         val startTime = System.currentTimeMillis()
-        
+
         return try {
-            val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
+            val response = kmaApi.getVilageFcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 1000,
+                dataType = "JSON",
+                baseDate = baseDate,
+                baseTime = baseTime,
+                nx = nx,
+                ny = ny
+            )
             val parsed = json.decodeFromString<KmaApiResponse<FcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -225,24 +229,24 @@ class KmaAdapter(
         val startTime = System.currentTimeMillis()
         
         return try {
-            // 중기육상예보 (날씨)
-            val landUrl = "$midBaseUrl/$MID_LAND_FCST" +
-                    "?serviceKey=$apiKey" +
-                    "&pageNo=1&numOfRows=10&dataType=JSON" +
-                    "&regId=$DEFAULT_REG_ID" +
-                    "&tmFc=$tmFc"
-            
-            // 중기기온예보 (기온)
-            val taUrl = "$midBaseUrl/$MID_TA" +
-                    "?serviceKey=$apiKey" +
-                    "&pageNo=1&numOfRows=10&dataType=JSON" +
-                    "&regId=$DEFAULT_TA_REG_ID" +
-                    "&tmFc=$tmFc"
-            
-            val landResponse = restTemplate.getForObject(landUrl, String::class.java)
-            val taResponse = restTemplate.getForObject(taUrl, String::class.java)
-            
-            if (landResponse == null || taResponse == null) {
+            val landResponse = kmaMidApi.getMidLandFcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 10,
+                dataType = "JSON",
+                regId = DEFAULT_REG_ID,
+                tmFc = tmFc
+            )
+            val taResponse = kmaMidApi.getMidTa(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 10,
+                dataType = "JSON",
+                regId = DEFAULT_TA_REG_ID,
+                tmFc = tmFc
+            )
+
+            if (landResponse.isEmpty() || taResponse.isEmpty()) {
                 apiUsagePort?.recordFailure(API_TYPE_MID, "Response is null")
                 return emptyList()
             }
@@ -272,28 +276,6 @@ class KmaAdapter(
             apiUsagePort?.recordFailure(API_TYPE_MID, e.message)
             emptyList()
         }
-    }
-    
-    /**
-     * API URL 생성
-     */
-    private fun buildUrl(
-        operation: String, 
-        nx: Int, 
-        ny: Int, 
-        baseDate: String, 
-        baseTime: String,
-        numOfRows: Int = 60
-    ): String {
-        return "$baseUrl/$operation" +
-                "?serviceKey=$apiKey" +
-                "&pageNo=1" +
-                "&numOfRows=$numOfRows" +
-                "&dataType=JSON" +
-                "&base_date=$baseDate" +
-                "&base_time=$baseTime" +
-                "&nx=$nx" +
-                "&ny=$ny"
     }
     
     /**

@@ -4,13 +4,9 @@ import com.seriouschoi.aircheck.core.domain.model.AirQualityResponse
 import com.seriouschoi.aircheck.core.domain.port.AirQualityPort
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
-import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 
 // ── 에어코리아 API 응답 모델 ───────────────────────────────────────────────
 
@@ -52,27 +48,18 @@ data class AirKoreaItem(
 @Component
 class AirKoreaAdapter(
     @Value("\${airkorea.api-key}") private val apiKey: String,
+    private val airKoreaApi: AirKoreaApi,
     private val apiUsagePort: com.seriouschoi.aircheck.core.service.port.ApiUsagePort?,
     private val stationCacheService: StationCacheService
 ) : AirQualityPort {
-    
+
     private val log = LoggerFactory.getLogger(javaClass)
-    
+
     companion object {
         private const val API_TYPE = "AIR_KOREA"
     }
-    
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            chain.proceed(chain.request().newBuilder()
-                .addHeader("User-Agent", "AirCheckServer/1.0")
-                .build())
-        }
-        .build()
-    
-    private val json = Json { 
+
+    private val json = Json {
         ignoreUnknownKeys = true 
         coerceInputValues = true
     }
@@ -165,34 +152,26 @@ class AirKoreaAdapter(
      * 측정소에서 원시 데이터 조회 (AirKoreaItem 반환)
      */
     private fun fetchRawData(stationName: String): AirKoreaItem? {
-        val url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty" +
-                "?stationName=${URLEncoder.encode(stationName, "UTF-8")}" +
-                "&dataTerm=DAILY&pageNo=1&numOfRows=1&returnType=json" +
-                "&serviceKey=${URLEncoder.encode(apiKey, "UTF-8")}" +
-                "&ver=1.0"
-        
         val startTime = System.currentTimeMillis()
-        
+
         return try {
-            val response = get(url)
+            val response = airKoreaApi.getMeasurementData(
+                stationName = stationName,
+                serviceKey = apiKey,
+                dataTerm = "DAILY",
+                pageNo = 1,
+                numOfRows = 1,
+                returnType = "json",
+                ver = "1.0"
+            )
+
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
-            
-            val responseTime = System.currentTimeMillis() - startTime
-            apiUsagePort?.recordSuccess(API_TYPE, responseTime)
-            
+            apiUsagePort?.recordSuccess(API_TYPE, System.currentTimeMillis() - startTime)
             parsed.response?.body?.items?.firstOrNull()
         } catch (e: Exception) {
             log.error("측정소 {} 조회 실패: {}", stationName, e.message)
             apiUsagePort?.recordFailure(API_TYPE, e.message)
             null
         }
-    }
-    
-    private fun get(url: String): String {
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("User-Agent", "AirCheckServer/1.0")
-            .build()
-        return client.newCall(request).execute().use { it.body?.string() ?: "" }
     }
 }

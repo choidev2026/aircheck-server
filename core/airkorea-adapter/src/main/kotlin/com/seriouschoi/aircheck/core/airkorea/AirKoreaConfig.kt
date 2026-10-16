@@ -37,7 +37,7 @@ class AirKoreaConfig(
             .defaultHeader("User-Agent", "AirCheckServer/1.0")
             .requestFactory(SimpleClientHttpRequestFactory().apply {
                 setConnectTimeout(10_000)
-                setReadTimeout(30_000)
+                setReadTimeout(60_000)
             })
             .build()
         return HttpServiceProxyFactory

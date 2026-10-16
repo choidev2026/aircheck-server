@@ -23,8 +23,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestTemplate
-import java.time.Instant
+import org.springframework.web.client.RestClient
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -45,15 +44,15 @@ private val logger = KotlinLogging.logger {}
 @Component
 @ConditionalOnProperty(name = ["weather.provider"], havingValue = "kma")
 class KmaAdapter(
-    private val restTemplate: RestTemplate,
     private val configPort: ServiceConfigPort,
     private val apiUsagePort: ApiUsagePort?,
     @Value("\${kma.api.key:}") private val apiKey: String,
-    @Value("\${kma.api.base-url:http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0}") 
-    private val baseUrl: String,
-    @Value("\${kma.api.mid-url:http://apis.data.go.kr/1360000/MidFcstInfoService}") 
-    private val midBaseUrl: String
+    @Value("\${kma.api.base-url}") private val baseUrl: String,
+    @Value("\${kma.api.mid-url}") private val midBaseUrl: String
 ) : WeatherPort {
+
+    private val restClient = RestClient.builder().baseUrl(baseUrl).build()
+    private val midRestClient = RestClient.builder().baseUrl(midBaseUrl).build()
     
     companion object {
         private const val ULTRA_SRT_NCST = "getUltraSrtNcst"  // 초단기실황
@@ -163,11 +162,18 @@ class KmaAdapter(
      * 초단기실황 조회
      */
     private fun fetchCurrentWeather(nx: Int, ny: Int, baseDate: String, baseTime: String): CurrentWeather? {
-        val url = buildUrl(ULTRA_SRT_NCST, nx, ny, baseDate, baseTime)
         val startTime = System.currentTimeMillis()
-        
+
         return try {
-            val response = restTemplate.getForObject(url, String::class.java) ?: return null
+            val response = restClient.get()
+                .uri { b -> b.path("/$ULTRA_SRT_NCST")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("pageNo", 1).queryParam("numOfRows", 60)
+                    .queryParam("dataType", "JSON")
+                    .queryParam("base_date", baseDate).queryParam("base_time", baseTime)
+                    .queryParam("nx", nx).queryParam("ny", ny)
+                    .build() }
+                .retrieve().body(String::class.java) ?: return null
             val parsed = json.decodeFromString<KmaApiResponse<NcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -194,11 +200,18 @@ class KmaAdapter(
      * 단기예보 원본 데이터 조회 (3일)
      */
     private fun fetchVilageFcstItems(nx: Int, ny: Int, baseDate: String, baseTime: String): List<FcstItem> {
-        val url = buildUrl(VILAGE_FCST, nx, ny, baseDate, baseTime, numOfRows = 1000)
         val startTime = System.currentTimeMillis()
-        
+
         return try {
-            val response = restTemplate.getForObject(url, String::class.java) ?: return emptyList()
+            val response = restClient.get()
+                .uri { b -> b.path("/$VILAGE_FCST")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("pageNo", 1).queryParam("numOfRows", 1000)
+                    .queryParam("dataType", "JSON")
+                    .queryParam("base_date", baseDate).queryParam("base_time", baseTime)
+                    .queryParam("nx", nx).queryParam("ny", ny)
+                    .build() }
+                .retrieve().body(String::class.java) ?: return emptyList()
             val parsed = json.decodeFromString<KmaApiResponse<FcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -225,22 +238,22 @@ class KmaAdapter(
         val startTime = System.currentTimeMillis()
         
         return try {
-            // 중기육상예보 (날씨)
-            val landUrl = "$midBaseUrl/$MID_LAND_FCST" +
-                    "?serviceKey=$apiKey" +
-                    "&pageNo=1&numOfRows=10&dataType=JSON" +
-                    "&regId=$DEFAULT_REG_ID" +
-                    "&tmFc=$tmFc"
-            
-            // 중기기온예보 (기온)
-            val taUrl = "$midBaseUrl/$MID_TA" +
-                    "?serviceKey=$apiKey" +
-                    "&pageNo=1&numOfRows=10&dataType=JSON" +
-                    "&regId=$DEFAULT_TA_REG_ID" +
-                    "&tmFc=$tmFc"
-            
-            val landResponse = restTemplate.getForObject(landUrl, String::class.java)
-            val taResponse = restTemplate.getForObject(taUrl, String::class.java)
+            val landResponse = midRestClient.get()
+                .uri { b -> b.path("/$MID_LAND_FCST")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("pageNo", 1).queryParam("numOfRows", 10)
+                    .queryParam("dataType", "JSON")
+                    .queryParam("regId", DEFAULT_REG_ID).queryParam("tmFc", tmFc)
+                    .build() }
+                .retrieve().body(String::class.java)
+            val taResponse = midRestClient.get()
+                .uri { b -> b.path("/$MID_TA")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("pageNo", 1).queryParam("numOfRows", 10)
+                    .queryParam("dataType", "JSON")
+                    .queryParam("regId", DEFAULT_TA_REG_ID).queryParam("tmFc", tmFc)
+                    .build() }
+                .retrieve().body(String::class.java)
             
             if (landResponse == null || taResponse == null) {
                 apiUsagePort?.recordFailure(API_TYPE_MID, "Response is null")
@@ -272,28 +285,6 @@ class KmaAdapter(
             apiUsagePort?.recordFailure(API_TYPE_MID, e.message)
             emptyList()
         }
-    }
-    
-    /**
-     * API URL 생성
-     */
-    private fun buildUrl(
-        operation: String, 
-        nx: Int, 
-        ny: Int, 
-        baseDate: String, 
-        baseTime: String,
-        numOfRows: Int = 60
-    ): String {
-        return "$baseUrl/$operation" +
-                "?serviceKey=$apiKey" +
-                "&pageNo=1" +
-                "&numOfRows=$numOfRows" +
-                "&dataType=JSON" +
-                "&base_date=$baseDate" +
-                "&base_time=$baseTime" +
-                "&nx=$nx" +
-                "&ny=$ny"
     }
     
     /**

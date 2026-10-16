@@ -2,14 +2,11 @@ package com.seriouschoi.aircheck.core.airkorea
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
-import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
+import org.springframework.web.client.RestClient
 
 /**
  * 측정소 정보 캐시 서비스
@@ -23,11 +20,10 @@ class StationCacheService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+    private val restClient = RestClient.builder()
+        .baseUrl(stationUrl)
         .build()
-    
+
     private val json = Json { ignoreUnknownKeys = true }
     
     /**
@@ -40,13 +36,18 @@ class StationCacheService(
         log.info("측정소 정보 로드 시작 (API 호출)")
         
         return try {
-            val url = "$stationUrl/getMsrstnList" +
-                    "?pageNo=1&numOfRows=700&returnType=json" +
-                    "&serviceKey=${URLEncoder.encode(apiKey, "UTF-8")}" +
-                    "&ver=1.1"
-            
-            val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute().use { it.body?.string() ?: "" }
+            val response = restClient.get()
+                .uri { builder ->
+                    builder.path("/getMsrstnList")
+                        .queryParam("pageNo", 1)
+                        .queryParam("numOfRows", 700)
+                        .queryParam("returnType", "json")
+                        .queryParam("serviceKey", apiKey)
+                        .queryParam("ver", "1.1")
+                        .build()
+                }
+                .retrieve()
+                .body(String::class.java) ?: return emptyMap()
             val parsed = json.decodeFromString<StationResponse>(response)
             
             val stations = parsed.response?.body?.items?.mapNotNull { station ->

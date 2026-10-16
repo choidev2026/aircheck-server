@@ -34,6 +34,11 @@ class AirKoreaConfig(
     fun stationApi(): StationApi {
         val restClient = RestClient.builder()
             .baseUrl(stationUrl)
+            .defaultHeader("User-Agent", "AirCheckServer/1.0")
+            .requestFactory(SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(10_000)
+                setReadTimeout(30_000)
+            })
             .build()
         return HttpServiceProxyFactory
             .builderFor(RestClientAdapter.create(restClient))

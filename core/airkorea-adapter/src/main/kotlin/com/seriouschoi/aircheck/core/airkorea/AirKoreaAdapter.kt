@@ -6,9 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
 
 // ── 에어코리아 API 응답 모델 ───────────────────────────────────────────────
 
@@ -50,25 +48,16 @@ data class AirKoreaItem(
 @Component
 class AirKoreaAdapter(
     @Value("\${airkorea.api-key}") private val apiKey: String,
-    @Value("\${airkorea.base-url}") private val baseUrl: String,
+    private val airKoreaApi: AirKoreaApi,
     private val apiUsagePort: com.seriouschoi.aircheck.core.service.port.ApiUsagePort?,
     private val stationCacheService: StationCacheService
 ) : AirQualityPort {
-    
+
     private val log = LoggerFactory.getLogger(javaClass)
-    
+
     companion object {
         private const val API_TYPE = "AIR_KOREA"
     }
-    
-    private val restClient = RestClient.builder()
-        .baseUrl(baseUrl)
-        .defaultHeader("User-Agent", "AirCheckServer/1.0")
-        .requestFactory(SimpleClientHttpRequestFactory().apply {
-            setConnectTimeout(10_000)
-            setReadTimeout(30_000)
-        })
-        .build()
 
     private val json = Json {
         ignoreUnknownKeys = true 
@@ -166,20 +155,15 @@ class AirKoreaAdapter(
         val startTime = System.currentTimeMillis()
 
         return try {
-            val response = restClient.get()
-                .uri { builder ->
-                    builder.path("/getMsrstnAcctoRltmMesureDnsty")
-                        .queryParam("stationName", stationName)
-                        .queryParam("dataTerm", "DAILY")
-                        .queryParam("pageNo", 1)
-                        .queryParam("numOfRows", 1)
-                        .queryParam("returnType", "json")
-                        .queryParam("serviceKey", apiKey)
-                        .queryParam("ver", "1.0")
-                        .build()
-                }
-                .retrieve()
-                .body(String::class.java) ?: return null
+            val response = airKoreaApi.getMeasurementData(
+                stationName = stationName,
+                serviceKey = apiKey,
+                dataTerm = "DAILY",
+                pageNo = 1,
+                numOfRows = 1,
+                returnType = "json",
+                ver = "1.0"
+            )
 
             val parsed = json.decodeFromString<AirKoreaResponse>(response)
             apiUsagePort?.recordSuccess(API_TYPE, System.currentTimeMillis() - startTime)

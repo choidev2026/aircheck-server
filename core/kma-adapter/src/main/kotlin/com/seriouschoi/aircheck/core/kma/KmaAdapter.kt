@@ -23,7 +23,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -47,26 +46,16 @@ class KmaAdapter(
     private val configPort: ServiceConfigPort,
     private val apiUsagePort: ApiUsagePort?,
     @Value("\${kma.api.key:}") private val apiKey: String,
-    @Value("\${kma.api.base-url}") private val baseUrl: String,
-    @Value("\${kma.api.mid-url}") private val midBaseUrl: String
+    private val kmaApi: KmaApi,
+    private val kmaMidApi: KmaMidApi
 ) : WeatherPort {
 
-    private val restClient = RestClient.builder().baseUrl(baseUrl).build()
-    private val midRestClient = RestClient.builder().baseUrl(midBaseUrl).build()
-    
     companion object {
-        private const val ULTRA_SRT_NCST = "getUltraSrtNcst"  // 초단기실황
-        // 초단기예보(getUltraSrtFcst) 제거됨 - POP 불일치 이슈 (#49)
-        private const val VILAGE_FCST = "getVilageFcst"       // 단기예보
-        private const val MID_LAND_FCST = "getMidLandFcst"    // 중기육상예보
-        
         // API 사용량 추적용 타입
         private const val API_TYPE_NCST = "KMA_ULTRA_SRT_NCST"
-        // API_TYPE_FCST 제거됨 - 초단기예보 미사용
         private const val API_TYPE_VILAGE = "KMA_VILAGE_FCST"
         private const val API_TYPE_MID = "KMA_MID_FCST"
-        private const val MID_TA = "getMidTa"                 // 중기기온예보
-        
+
         // 중기예보 지역코드 (서울/경기 기준, 추후 확장)
         private const val DEFAULT_REG_ID = "11B00000"  // 서울/인천/경기
         private const val DEFAULT_TA_REG_ID = "11B10101"  // 서울
@@ -165,15 +154,16 @@ class KmaAdapter(
         val startTime = System.currentTimeMillis()
 
         return try {
-            val response = restClient.get()
-                .uri { b -> b.path("/$ULTRA_SRT_NCST")
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("pageNo", 1).queryParam("numOfRows", 60)
-                    .queryParam("dataType", "JSON")
-                    .queryParam("base_date", baseDate).queryParam("base_time", baseTime)
-                    .queryParam("nx", nx).queryParam("ny", ny)
-                    .build() }
-                .retrieve().body(String::class.java) ?: return null
+            val response = kmaApi.getUltraSrtNcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 60,
+                dataType = "JSON",
+                baseDate = baseDate,
+                baseTime = baseTime,
+                nx = nx,
+                ny = ny
+            )
             val parsed = json.decodeFromString<KmaApiResponse<NcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -203,15 +193,16 @@ class KmaAdapter(
         val startTime = System.currentTimeMillis()
 
         return try {
-            val response = restClient.get()
-                .uri { b -> b.path("/$VILAGE_FCST")
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("pageNo", 1).queryParam("numOfRows", 1000)
-                    .queryParam("dataType", "JSON")
-                    .queryParam("base_date", baseDate).queryParam("base_time", baseTime)
-                    .queryParam("nx", nx).queryParam("ny", ny)
-                    .build() }
-                .retrieve().body(String::class.java) ?: return emptyList()
+            val response = kmaApi.getVilageFcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 1000,
+                dataType = "JSON",
+                baseDate = baseDate,
+                baseTime = baseTime,
+                nx = nx,
+                ny = ny
+            )
             val parsed = json.decodeFromString<KmaApiResponse<FcstItem>>(response)
             
             if (parsed.response.header.resultCode != "00") {
@@ -238,24 +229,24 @@ class KmaAdapter(
         val startTime = System.currentTimeMillis()
         
         return try {
-            val landResponse = midRestClient.get()
-                .uri { b -> b.path("/$MID_LAND_FCST")
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("pageNo", 1).queryParam("numOfRows", 10)
-                    .queryParam("dataType", "JSON")
-                    .queryParam("regId", DEFAULT_REG_ID).queryParam("tmFc", tmFc)
-                    .build() }
-                .retrieve().body(String::class.java)
-            val taResponse = midRestClient.get()
-                .uri { b -> b.path("/$MID_TA")
-                    .queryParam("serviceKey", apiKey)
-                    .queryParam("pageNo", 1).queryParam("numOfRows", 10)
-                    .queryParam("dataType", "JSON")
-                    .queryParam("regId", DEFAULT_TA_REG_ID).queryParam("tmFc", tmFc)
-                    .build() }
-                .retrieve().body(String::class.java)
-            
-            if (landResponse == null || taResponse == null) {
+            val landResponse = kmaMidApi.getMidLandFcst(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 10,
+                dataType = "JSON",
+                regId = DEFAULT_REG_ID,
+                tmFc = tmFc
+            )
+            val taResponse = kmaMidApi.getMidTa(
+                serviceKey = apiKey,
+                pageNo = 1,
+                numOfRows = 10,
+                dataType = "JSON",
+                regId = DEFAULT_TA_REG_ID,
+                tmFc = tmFc
+            )
+
+            if (landResponse.isEmpty() || taResponse.isEmpty()) {
                 apiUsagePort?.recordFailure(API_TYPE_MID, "Response is null")
                 return emptyList()
             }
